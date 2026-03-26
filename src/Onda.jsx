@@ -471,6 +471,44 @@ COMENTARIO_MAESTRO: [1-2 frases finais com a voz autêntica do Maestro — algo 
     `Conversa: ${conv}\nConhecido: ${JSON.stringify(exist||{})}
 Retorne APENAS JSON sem markdown: {"nome":"","origem":"","mundoMusical":"","padroes":""}`,
 
+  artista: (musica, artista) => `Você é O Maestro. Alguém chegou ao ONDA pela primeira vez trazendo esta música: "${musica}" de ${artista}.
+
+Escreva "O Que o Artista Sabia" — a história real por trás desta música.
+
+REGRAS:
+- Conte o que o artista estava vivendo quando criou esta obra: o contexto histórico, emocional, político, pessoal.
+- Mostre o que ele captou do espírito humano — o que ele nomeou que a maioria das pessoas sente mas não consegue verbalizar.
+- Use fatos reais. Se não tiver certeza de um detalhe específico, trabalhe com o que sabe com certeza sobre o artista e a época.
+- Tom: o Maestro Provocador Afetivo — culto, caloroso, com humor quando couber. Uma história que prende, não uma análise acadêmica.
+- Tamanho: 3 parágrafos curtos. Denso mas acessível.
+- Termine com UMA pergunta do Maestro: "Isso ressoa com alguma coisa que você está vivendo agora?" — mas dita com a voz dele, não assim literalmente.
+
+Formato:
+HISTORIA: [3 parágrafos]
+PERGUNTA: [a pergunta final do Maestro]`,
+
+  artistaSugestoes: (musica, artista, resposta) => `Diálogo:
+Música: "${musica}" de ${artista}
+O usuário respondeu à pergunta do Maestro com: "${resposta}"
+
+O Maestro ouviu. Agora sugere 3 músicas brasileiras que habitam o mesmo território emocional — cada uma de um artista diferente, de épocas ou gêneros diferentes.
+
+Para cada música:
+- Por que ela ressoa com o que foi dito
+- Uma frase sobre o que o artista sabia quando a criou
+
+Gere no formato:
+S1_TÍTULO: [artista — música]
+S1_YT: [query YouTube precisa]
+S1_TEXTO: [2 frases — o território emocional + o que o artista sabia]
+S2_TÍTULO: [artista — música]
+S2_YT: [query YouTube]
+S2_TEXTO: [2 frases]
+S3_TÍTULO: [artista — música]
+S3_YT: [query YouTube]
+S3_TEXTO: [2 frases]
+CONVITE: [1 frase do Maestro convidando o usuário a contar qual música o representa agora — com a voz do Provocador Afetivo]`,
+
   retomada: (perguntaPendente, musicaAnterior, ilhaAnterior, perfil) =>
     `O usuário voltou para continuar a conversa.
 Sessão anterior: música "${musicaAnterior}", ilha descoberta: ${ilhaAnterior||"desconhecida"}.
@@ -589,6 +627,38 @@ const loadDuo = async (codigo) => {
 };
 // Gera código de 6 caracteres alfanumérico
 const gerarCodigo = () => Math.random().toString(36).slice(2,8).toUpperCase();
+
+// Storage para links compartilhados — "O Que o Artista Sabia"
+const LINK_PREFIX = "onda_link_";
+const saveLink = async (codigo, dados) => {
+  try { await window.storage.set(`${LINK_PREFIX}${codigo}`, JSON.stringify(dados), true); } catch {}
+};
+const loadLink = async (codigo) => {
+  try {
+    const r = await window.storage.get(`${LINK_PREFIX}${codigo}`, true);
+    return r ? JSON.parse(r.value) : null;
+  } catch { return null; }
+};
+
+// Parser para sugestões do artista
+function parseSugestoes(r) {
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  const get = k => r.match(new RegExp(`${esc(k)}:\\s*([^\\n]+)`))?.[1]?.trim()||"";
+  const blk = (k,n) => {
+    const pat = n==="$"
+      ? new RegExp(`${esc(k)}:\\s*([\\s\\S]*?)$`)
+      : new RegExp(`${esc(k)}:\\s*([\\s\\S]*?)(?=${esc(n)}:|$)`);
+    return r.match(pat)?.[1]?.trim()||"";
+  };
+  return {
+    sugestoes: [
+      {titulo:get("S1_TÍTULO"),yt:get("S1_YT"),texto:blk("S1_TEXTO","S2_TÍTULO")},
+      {titulo:get("S2_TÍTULO"),yt:get("S2_YT"),texto:blk("S2_TEXTO","S3_TÍTULO")},
+      {titulo:get("S3_TÍTULO"),yt:get("S3_YT"),texto:blk("S3_TEXTO","CONVITE")},
+    ],
+    convite: get("CONVITE"),
+  };
+}
 function parseMusicas(r) {
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
   const get = k => r.match(new RegExp(`${esc(k)}:\\s*([^\\n]+)`))?.[1]?.trim()||"";
@@ -1642,6 +1712,305 @@ const ILHAS_LAND=[
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// O QUE O ARTISTA SABIA — tela principal do novo fluxo
+// ═══════════════════════════════════════════════════════════════════════════════
+function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVoltar}) {
+  const [etapa, setEtapa] = useState("carregando"); // carregando | historia | resposta | sugestoes
+  const [historia, setHistoria] = useState("");
+  const [pergunta, setPergunta] = useState("");
+  const [resposta, setResposta] = useState("");
+  const [sugestoes, setSugestoes] = useState([]);
+  const [convite, setConvite] = useState("");
+  const [carregandoSug, setCarregandoSug] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const nomeArtista = artista || musica.split(" - ")[0] || "este artista";
+  const nomeMusica = musica.includes(" - ") ? musica.split(" - ").slice(1).join(" - ") : musica;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await ai(Q.artista(musica, nomeArtista), MAESTRO_SYS(null, 1, []));
+        const hist = raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim() || raw;
+        const perg = raw.match(/PERGUNTA:\s*([\s\S]*?)$/i)?.[1]?.trim() || "Isso ressoa com algo que você está vivendo?";
+        setHistoria(hist);
+        setPergunta(perg);
+        setEtapa("historia");
+      } catch {
+        setErro("O Maestro não conseguiu carregar a história agora. Tente de novo.");
+        setEtapa("historia");
+      }
+    })();
+  }, []);
+
+  const enviarResposta = async () => {
+    if (!resposta.trim()) return;
+    setCarregandoSug(true);
+    setEtapa("sugestoes");
+    try {
+      const raw = await ai(Q.artistaSugestoes(musica, nomeArtista, resposta), MAESTRO_SYS(null, 1, []));
+      const parsed = parseSugestoes(raw);
+      setSugestoes(parsed.sugestoes.filter(s => s.titulo));
+      setConvite(parsed.convite || "Tem uma música que te representa agora?");
+    } catch {
+      setConvite("Tem uma música que te representa agora? Me conta qual é.");
+    } finally {
+      setCarregandoSug(false);
+    }
+  };
+
+  const fundo = {minHeight:"100vh", background:C.bg, padding:"24px 20px 48px", maxWidth:680, margin:"0 auto"};
+
+  if (etapa === "carregando") return (
+    <div style={{...fundo, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16}}>
+      <div style={{fontSize:32}}>🎼</div>
+      <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic", textAlign:"center"}}>
+        O Maestro está procurando a história por trás desta música…
+      </p>
+    </div>
+  );
+
+  return (
+    <div style={fundo}>
+      {/* Cabeçalho */}
+      <div style={{marginBottom:32, textAlign:"center"}}>
+        {quemCompartilhou && (
+          <p style={{fontFamily:C.corpo, color:C.muted, fontSize:13, marginBottom:8}}>
+            {quemCompartilhou} compartilhou com você
+          </p>
+        )}
+        <div style={{display:"inline-flex", alignItems:"center", gap:8, background:C.faint,
+          border:`1px solid ${C.border}`, borderRadius:100, padding:"6px 16px", marginBottom:16}}>
+          <span style={{color:C.verdeclaro, fontSize:16}}>♪</span>
+          <span style={{fontFamily:C.corpo, color:C.creme, fontSize:15, fontStyle:"italic"}}>{musica}</span>
+        </div>
+        <p style={{fontFamily:C.corpo, color:C.ouro, fontSize:11, letterSpacing:"0.4em",
+          textTransform:"uppercase", fontWeight:700}}>O que o artista sabia</p>
+      </div>
+
+      {/* História */}
+      {historia && (
+        <div style={{background:C.card, border:`1px solid ${C.ouro}22`,
+          borderRadius:16, padding:"24px 28px", marginBottom:24,
+          animation:"up 0.6s ease both"}}>
+          <div style={{display:"flex", gap:12, marginBottom:16}}>
+            <div style={{flexShrink:0, width:42, height:42, borderRadius:"50%",
+              background:`linear-gradient(135deg,#1A1A2E,#2A2A4E)`,
+              border:`2px solid ${C.ouro}66`, display:"flex", alignItems:"center",
+              justifyContent:"center", fontSize:18}}>🎼</div>
+            <div>
+              <p style={{fontFamily:C.corpo, fontSize:8, letterSpacing:"0.45em",
+                textTransform:"uppercase", color:C.ouro, fontWeight:700, margin:"0 0 4px"}}>O MAESTRO</p>
+              <p style={{fontFamily:C.corpo, fontSize:13, color:C.muted, margin:0}}>
+                sobre {nomeArtista}
+              </p>
+            </div>
+          </div>
+          {historia.split("\n\n").filter(Boolean).map((par, i) => (
+            <p key={i} style={{fontFamily:C.corpo, fontSize:17, lineHeight:1.85,
+              color:C.creme, margin:"0 0 16px", fontStyle:"italic"}}>{par}</p>
+          ))}
+          {erro && <p style={{color:"#E08080", fontFamily:C.corpo, fontSize:14}}>{erro}</p>}
+        </div>
+      )}
+
+      {/* Pergunta + resposta */}
+      {etapa === "historia" && pergunta && (
+        <div style={{animation:"up 0.5s ease 0.3s both"}}>
+          <BalaM texto={pergunta}/>
+          <TA v={resposta} set={setResposta} enter={enviarResposta}
+            ph="O que essa música desperta em você…"/>
+          <div style={{marginTop:16, display:"flex", gap:12}}>
+            <button type="button" onClick={enviarResposta} disabled={!resposta.trim()}
+              style={{flex:1, background:resposta.trim()?C.ouro:C.faint, color:"#fff",
+                border:"none", borderRadius:14, padding:"18px 24px", fontSize:15,
+                letterSpacing:"0.15em", textTransform:"uppercase",
+                cursor:resposta.trim()?"pointer":"not-allowed", fontFamily:C.corpo,
+                boxShadow:resposta.trim()?`0 4px 22px ${C.ouro}55`:"none",
+                transition:"all 0.3s", minHeight:56}}>
+              Responder →
+            </button>
+            <button type="button" onClick={() => setEtapa("sugestoes")}
+              style={{background:"transparent", color:C.muted, border:`1px solid ${C.border}`,
+                borderRadius:14, padding:"18px 20px", fontSize:13, cursor:"pointer",
+                fontFamily:C.corpo, whiteSpace:"nowrap"}}>
+              Pular
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Sugestões */}
+      {(etapa === "sugestoes") && (
+        <div style={{animation:"up 0.5s ease both"}}>
+          {carregandoSug ? (
+            <div style={{padding:"24px 0", textAlign:"center"}}>
+              <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic"}}>
+                O Maestro está buscando músicas do mesmo território…
+              </p>
+            </div>
+          ) : (
+            <>
+              {sugestoes.map((s, i) => (
+                <div key={i} style={{background:C.faint, border:`1px solid ${C.border}`,
+                  borderLeft:`4px solid ${[C.ouro,C.verdeclaro,C.roxo][i]||C.azul}`,
+                  borderRadius:12, padding:"18px 20px", marginBottom:14,
+                  animation:`up 0.4s ease ${i*0.1}s both`}}>
+                  <p style={{fontFamily:C.corpo, fontSize:16, fontStyle:"italic",
+                    color:C.creme, margin:"0 0 6px"}}>{s.titulo}</p>
+                  <YTBtn query={s.yt} titulo={s.titulo}/>
+                  <p style={{fontFamily:C.corpo, fontSize:14, color:C.creme,
+                    opacity:0.75, margin:"8px 0 0", lineHeight:1.7}}>{s.texto}</p>
+                </div>
+              ))}
+
+              {/* Convite para entrar na jornada */}
+              {convite && (
+                <div style={{marginTop:24, animation:"up 0.5s ease 0.4s both"}}>
+                  <BalaM texto={convite}/>
+                  <button type="button" onClick={onEntrarJornada}
+                    style={{width:"100%", background:C.ouro, color:"#fff", border:"none",
+                      borderRadius:14, padding:"20px 24px", fontSize:15,
+                      letterSpacing:"0.15em", textTransform:"uppercase", cursor:"pointer",
+                      fontFamily:C.corpo, boxShadow:`0 4px 28px ${C.ouro}55`,
+                      transition:"all 0.3s", marginTop:16, minHeight:56}}>
+                    Contar a minha música →
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Rodapé discreto */}
+      <div style={{marginTop:40, textAlign:"center"}}>
+        <p style={{fontFamily:C.corpo, fontSize:12, color:C.muted, opacity:0.5}}>
+          ONDA — música como espelho da alma
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TELA ARTISTA LIVRE — aba "Artista" onde o usuário busca qualquer música
+// ═══════════════════════════════════════════════════════════════════════════════
+function TelaArtistaLivre({perfil, onEntrarJornada}) {
+  const [busca, setBusca] = useState("");
+  const [musicaEscolhida, setMusicaEscolhida] = useState(null);
+
+  if (musicaEscolhida) {
+    return (
+      <TelaArtista
+        musica={musicaEscolhida}
+        artista={musicaEscolhida.split(" - ")[0] || musicaEscolhida}
+        quemCompartilhou={null}
+        onEntrarJornada={()=>{ setMusicaEscolhida(null); onEntrarJornada?.(); }}
+        onVoltar={()=>setMusicaEscolhida(null)}
+      />
+    );
+  }
+
+  return (
+    <div style={{paddingTop:8}}>
+      {/* Cabeçalho */}
+      <div style={{textAlign:"center", marginBottom:32}}>
+        <p style={{fontFamily:C.corpo, fontSize:9, letterSpacing:"0.5em",
+          textTransform:"uppercase", color:C.ouro, fontWeight:700, margin:"0 0 12px"}}>
+          O que o artista sabia
+        </p>
+        <p style={{fontFamily:C.corpo, fontSize:20, color:C.creme,
+          fontStyle:"italic", margin:"0 0 8px", lineHeight:1.5}}>
+          Toda música que te move<br/>já sabia algo sobre você.
+        </p>
+        <p style={{fontFamily:C.corpo, fontSize:14, color:C.muted, margin:0, lineHeight:1.7}}>
+          Escolha uma música. O Maestro conta a história por trás dela<br/>
+          — e por que ela ressoa com o que você está vivendo.
+        </p>
+      </div>
+
+      {/* Campo de busca */}
+      <div style={{marginBottom:16}}>
+        <TA
+          v={busca}
+          set={setBusca}
+          enter={()=>{ if(busca.trim()) setMusicaEscolhida(busca.trim()); }}
+          ph="Artista — Música (ex: Belchior — Como Nossos Pais)"
+        />
+        <button
+          type="button"
+          disabled={!busca.trim()}
+          onClick={()=>{ if(busca.trim()) setMusicaEscolhida(busca.trim()); }}
+          style={{
+            width:"100%", marginTop:12,
+            background:busca.trim()?C.ouro:C.faint,
+            color:"#fff", border:"none", borderRadius:14,
+            padding:"18px 24px", fontSize:15, letterSpacing:"0.15em",
+            textTransform:"uppercase", cursor:busca.trim()?"pointer":"not-allowed",
+            fontFamily:C.corpo,
+            boxShadow:busca.trim()?`0 4px 22px ${C.ouro}55`:"none",
+            transition:"all 0.3s", minHeight:56,
+          }}>
+          Descobrir o que o artista sabia →
+        </button>
+      </div>
+
+      {/* Sugestões de músicas */}
+      <div style={{marginTop:32}}>
+        <p style={{fontFamily:C.corpo, fontSize:11, letterSpacing:"0.4em",
+          textTransform:"uppercase", color:C.muted, marginBottom:16, textAlign:"center"}}>
+          ou comece por uma dessas
+        </p>
+        <div style={{display:"flex", flexDirection:"column", gap:10}}>
+          {[
+            {m:"Belchior — Como Nossos Pais",      desc:"raiva, tempo, geração"},
+            {m:"Gonzaguinha — Começaria Tudo Outra Vez", desc:"recomeço, amor, vida"},
+            {m:"Cartola — As Rosas Não Falam",     desc:"saudade, perda, silêncio"},
+            {m:"Elza Soares — A Carne",             desc:"resistência, corpo, história"},
+            {m:"Legião Urbana — Pais e Filhos",    desc:"família, tempo, distância"},
+            {m:"Emicida — AmarElo",                desc:"esperança, luta, ancestralidade"},
+          ].map((item,i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={()=>setMusicaEscolhida(item.m)}
+              style={{
+                background:C.faint, border:`1px solid ${C.border}`,
+                borderLeft:`3px solid ${C.ouro}66`,
+                borderRadius:12, padding:"14px 18px",
+                textAlign:"left", cursor:"pointer",
+                fontFamily:C.corpo, transition:"all 0.2s",
+                display:"flex", justifyContent:"space-between", alignItems:"center",
+              }}>
+              <span style={{fontSize:15, color:C.creme, fontStyle:"italic"}}>{item.m}</span>
+              <span style={{fontSize:12, color:C.muted, marginLeft:12, flexShrink:0}}>{item.desc}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TELA DE CHEGADA — entrada via link compartilhado
+// ═══════════════════════════════════════════════════════════════════════════════
+function TelaChegada({linkData, onEntrarJornada, onVoltar}) {
+  const {musica, artista, quemCompartilhou} = linkData;
+  return (
+    <TelaArtista
+      musica={musica}
+      artista={artista}
+      quemCompartilhou={quemCompartilhou}
+      onEntrarJornada={onEntrarJornada}
+      onVoltar={onVoltar}
+    />
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TELA DO DIÁRIO DO ARQUIPÉLAGO
 // ═══════════════════════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -2529,12 +2898,25 @@ export default function Onda() {
   const [mostrarConstelacaoApos,setMostrarConstelacaoApos]=useState(false);
   const [verSobre,setVerSobre]=useState(false);
   const [desafioAceito,setDesafioAceito]=useState(false);
-  const [diario,setDiario]=useState([]); // entradas do diário do arquipélago
+  const [diario,setDiario]=useState([]);
   const [verDiario,setVerDiario]=useState(false);
   const [verDuo,setVerDuo]=useState(false);
+  const [linkData,setLinkData]=useState(null); // dados do link compartilhado
 
   useEffect(()=>{
     (async()=>{
+      // Verifica se chegou via link compartilhado (?link=CODIGO)
+      const params = new URLSearchParams(window.location.search);
+      const linkCodigo = params.get("link");
+      if (linkCodigo) {
+        const dados = await loadLink(linkCodigo);
+        if (dados) {
+          setLinkData(dados);
+          setTela("artista");
+          return;
+        }
+      }
+
       const s=await load();
       if(s){
         const ilhasLimpas = normalizarIlhas(s.ilhas||[]);
@@ -2714,18 +3096,29 @@ export default function Onda() {
 
   if(tela==="landing") return <OndaLanding onEntrar={()=>setTela("inicio")}/>;
 
+  // Tela de chegada via link — "O Que o Artista Sabia"
+  if(tela==="artista") return (
+    <TelaChegada
+      linkData={linkData||{musica:"",artista:"",quemCompartilhou:""}}
+      onEntrarJornada={()=>{ setLinkData(null); setTela("inicio"); }}
+      onVoltar={()=>setTela("landing")}
+    />
+  );
+
   // Barra de navegação permanente
-  const telaAtiva = verDuo ? "duo" : verDiario ? "diario" : verSobre ? "sobre" : "jornada";
+  const [verArtista, setVerArtista] = useState(false);
+  const telaAtiva = verDuo ? "duo" : verDiario ? "diario" : verSobre ? "sobre" : verArtista ? "artista" : "jornada";
 
   const NavBar = () => (
     <div style={{
       display:"flex",alignItems:"center",justifyContent:"center",
       gap:3,marginBottom:32,
       background:C.faint,border:`1px solid ${C.border}`,
-      borderRadius:100,padding:"4px",maxWidth:520,margin:"0 auto 36px",
+      borderRadius:100,padding:"4px",maxWidth:560,margin:"0 auto 36px",
     }}>
       {[
         {id:"jornada", label:"Jornada"},
+        {id:"artista", label:"Artista"},
         {id:"duo",     label:"A Dois"},
         {id:"diario",  label:`Diário${diario.length>0?` (${diario.length})`:""}`},
         {id:"sobre",   label:"Sobre"},
@@ -2736,12 +3129,13 @@ export default function Onda() {
             setVerDuo(tab.id==="duo");
             setVerDiario(tab.id==="diario");
             setVerSobre(tab.id==="sobre");
+            setVerArtista(tab.id==="artista");
           }}
             style={{
-              flex:1,padding:"8px 8px",borderRadius:100,border:"none",
+              flex:1,padding:"8px 6px",borderRadius:100,border:"none",
               background:ativo?C.card:"transparent",
               color:ativo?C.creme:C.muted,
-              fontSize:10,letterSpacing:"0.08em",textTransform:"uppercase",
+              fontSize:9,letterSpacing:"0.08em",textTransform:"uppercase",
               cursor:"pointer",fontFamily:C.corpo,
               transition:"all 0.25s",
               boxShadow:ativo?`0 2px 8px rgba(0,0,0,0.3)`:"none",
@@ -2769,6 +3163,25 @@ export default function Onda() {
           perfil={perfil} nivel={nivel} ilhas={ilhasVisitadas}
           onResultado={onResultado} onPerfil={onPerfil}
           onVoltar={()=>setVerDuo(false)}
+        />
+      </div>
+    </div>
+  );
+
+  // Aba "O Que o Artista Sabia" — busca livre por música
+  if(verArtista) return (
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:C.corpo,color:C.creme,
+      padding:"44px 24px 80px",overflowX:"hidden"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+        @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.08);opacity:1}}
+      `}</style>
+      <div style={{maxWidth:680,margin:"0 auto"}}>
+        <NavBar/>
+        <TelaArtistaLivre
+          perfil={perfil}
+          onEntrarJornada={()=>{ setVerArtista(false); }}
         />
       </div>
     </div>
@@ -3097,9 +3510,27 @@ export default function Onda() {
               <Btn fn={()=>{reiniciar();setTimeout(()=>setModoRetomada(false),50);}}
                 ch="Nova jornada →" cor={C.ouro}
                 sx={{animation:"shimmer 2.5s ease infinite"}}/>
+              <Btn outline fn={async()=>{
+                // Gera link compartilhável com a música atual
+                const codigo = gerarCodigo();
+                await saveLink(codigo, {
+                  musica: musicaPedida,
+                  artista: musicas[0]?.titulo?.split(" — ")[0] || musicaPedida,
+                  quemCompartilhou: perfil?.nome || "alguém",
+                });
+                const url = `${window.location.origin}${window.location.pathname}?link=${codigo}`;
+                if (navigator.share) {
+                  navigator.share({
+                    title: "ONDA — O Que o Artista Sabia",
+                    text: `Ouvi "${musicaPedida}" e descobri algo sobre ela que me surpreendeu.`,
+                    url,
+                  }).catch(()=>{});
+                } else {
+                  navigator.clipboard?.writeText(url);
+                  alert("Link copiado! Compartilhe com quem você quiser.");
+                }
+              }} ch="Compartilhar esta música →"/>
             </div>
-
-            {/* Constelação — aparece automaticamente na 5ª sessão e múltiplos */}
             {mostrarConstelacaoApos && (
               <div style={{marginTop:32,padding:"20px 24px",
                 background:`linear-gradient(135deg, ${C.roxo}18, ${C.card})`,
