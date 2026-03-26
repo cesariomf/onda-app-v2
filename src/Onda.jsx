@@ -4,26 +4,55 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // VOZ — Web Speech API (reconhecimento + síntese)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Faz o Maestro falar — voz grave, pausada, portuguesa
+// Faz o Maestro falar — voz masculina pt-BR, funciona no Safari/macOS
 function falarMaestro(texto) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
-  // Remove emojis e símbolos que atrapalham a leitura
+
   const limpo = texto.replace(/[\u{1F300}-\u{1FFFF}]/gu, "")
-                     .replace(/[→←↑↓♪🎼]/g, "")
+                     .replace(/[→←↑↓♪🎼▶⏸]/g, "")
                      .trim();
+
   const utter = new SpeechSynthesisUtterance(limpo);
   utter.lang = "pt-BR";
-  utter.rate = 0.88;   // um pouco mais lento — presença analítica
-  utter.pitch = 0.85;  // mais grave
+  utter.rate = 0.88;
+  utter.pitch = 0.82;
   utter.volume = 1;
-  // Tenta encontrar uma voz pt-BR masculina
+
+  // Função de seleção — roda depois que vozes carregam (Safari é assíncrono)
+  const escolherVoz = () => {
+    const vozes = window.speechSynthesis.getVoices();
+
+    // Vozes masculinas pt-BR em ordem de preferência (macOS Safari)
+    const preferidas = [
+      "Reed (Portuguese (Brazil))",
+      "Grandpa (Portuguese (Brazil))",
+      "Rocko (Portuguese (Brazil))",
+      "Eddy (Portuguese (Brazil))",
+      "Luciana",       // feminina mas pt-BR — fallback
+    ];
+
+    for (const nome of preferidas) {
+      const voz = vozes.find(v => v.name === nome);
+      if (voz) { utter.voice = voz; break; }
+    }
+
+    // Se nenhuma encontrada, tenta qualquer pt-BR exceto pt-PT
+    if (!utter.voice) {
+      const ptBR = vozes.find(v => v.lang === "pt-BR");
+      if (ptBR) utter.voice = ptBR;
+    }
+
+    window.speechSynthesis.speak(utter);
+  };
+
   const vozes = window.speechSynthesis.getVoices();
-  const ptBR = vozes.filter(v => v.lang.startsWith("pt"));
-  const masculina = ptBR.find(v => /male|masc|daniel|ricardo|raimundo|paulo/i.test(v.name));
-  if (masculina) utter.voice = masculina;
-  else if (ptBR[0]) utter.voice = ptBR[0];
-  window.speechSynthesis.speak(utter);
+  if (vozes.length > 0) {
+    escolherVoz();
+  } else {
+    // Safari carrega vozes de forma assíncrona
+    window.speechSynthesis.onvoiceschanged = () => { escolherVoz(); };
+  }
 }
 
 // Hook de reconhecimento de voz
