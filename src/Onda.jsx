@@ -1995,6 +1995,125 @@ function TelaArtistaLivre({perfil, onEntrarJornada}) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// TELA DE ENTRADA — nova primeira página do ONDA
+// "O Que o Artista Sabia" como porta de entrada, sem landing de marketing
+// ═══════════════════════════════════════════════════════════════════════════════
+function TelaArtistaEntrada({onEntrar}) {
+  const [musicaEscolhida, setMusicaEscolhida] = useState(null);
+  const [busca, setBusca] = useState("");
+
+  const sugestoes = [
+    {m:"Belchior — Como Nossos Pais",           tags:"raiva, tempo, geração"},
+    {m:"Gonzaguinha — Começaria Tudo Outra Vez", tags:"recomeço, amor, escolha"},
+    {m:"Cartola — As Rosas Não Falam",           tags:"saudade, perda, silêncio"},
+    {m:"Elza Soares — A Carne",                  tags:"resistência, corpo, história"},
+    {m:"Emicida — AmarElo",                      tags:"esperança, luta, ancestralidade"},
+    {m:"Milton Nascimento — Travessia",           tags:"solidão, caminho, destino"},
+  ];
+
+  if (musicaEscolhida) {
+    return (
+      <TelaArtista
+        musica={musicaEscolhida}
+        artista={musicaEscolhida.split(" — ")[0] || musicaEscolhida}
+        quemCompartilhou={null}
+        onEntrarJornada={onEntrar}
+        onVoltar={()=>setMusicaEscolhida(null)}
+      />
+    );
+  }
+
+  return (
+    <div style={{minHeight:"100vh", background:C.bg, fontFamily:C.corpo, color:C.creme, overflowX:"hidden"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&display=swap');
+        @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadein{from{opacity:0}to{opacity:1}}
+        .sug:hover{background:rgba(232,184,48,0.07)!important;border-color:${C.ouro}55!important}
+      `}</style>
+      <div style={{maxWidth:640, margin:"0 auto", padding:"0 24px 80px"}}>
+
+        {/* Identidade */}
+        <div style={{paddingTop:56, paddingBottom:40, textAlign:"center", animation:"fadein 0.8s ease both"}}>
+          <div style={{display:"inline-flex", alignItems:"center", gap:10, marginBottom:28}}>
+            <div style={{width:42,height:42,borderRadius:"50%",
+              background:`linear-gradient(135deg,#1A1A2E,#2A2A4E)`,
+              border:`2px solid ${C.ouro}88`,display:"flex",alignItems:"center",
+              justifyContent:"center",fontSize:19,boxShadow:`0 0 20px ${C.ouro}33`}}>🎼</div>
+            <span style={{fontSize:26,letterSpacing:"0.22em",textTransform:"uppercase",
+              fontFamily:"'Playfair Display', serif",color:C.ouro,fontWeight:300}}>ONDA</span>
+          </div>
+          <p style={{fontFamily:"'Playfair Display', serif",fontSize:"clamp(22px,5.5vw,34px)",
+            fontStyle:"italic",color:C.creme,margin:"0 0 14px",lineHeight:1.35,fontWeight:400}}>
+            Toda música que te move<br/>já sabia algo sobre você.
+          </p>
+          <p style={{fontFamily:C.corpo,fontSize:15,color:C.muted,margin:0,lineHeight:1.75}}>
+            Escolha uma música. O Maestro conta o que o artista<br/>
+            sabia quando a criou — e por que ela ainda ressoa.
+          </p>
+        </div>
+
+        {/* Busca */}
+        <div style={{animation:"up 0.6s ease 0.15s both"}}>
+          <TA v={busca} set={setBusca}
+            enter={()=>{ if(busca.trim()) setMusicaEscolhida(busca.trim()); }}
+            ph="Artista — Música  (ex: Belchior — Como Nossos Pais)"/>
+          <button type="button" disabled={!busca.trim()}
+            onClick={()=>{ if(busca.trim()) setMusicaEscolhida(busca.trim()); }}
+            style={{width:"100%",marginTop:12,
+              background:busca.trim()?C.ouro:C.faint,color:"#fff",
+              border:"none",borderRadius:14,padding:"18px 24px",fontSize:15,
+              letterSpacing:"0.15em",textTransform:"uppercase",
+              cursor:busca.trim()?"pointer":"not-allowed",fontFamily:C.corpo,
+              boxShadow:busca.trim()?`0 4px 28px ${C.ouro}55`:"none",
+              transition:"all 0.3s",minHeight:56}}>
+            O que este artista sabia →
+          </button>
+        </div>
+
+        {/* Divisor */}
+        <div style={{display:"flex",alignItems:"center",gap:14,margin:"28px 0 18px",
+          animation:"up 0.5s ease 0.3s both"}}>
+          <div style={{flex:1,height:"1px",background:`linear-gradient(to right,transparent,${C.border})`}}/>
+          <span style={{fontSize:10,letterSpacing:"0.45em",textTransform:"uppercase",color:C.muted}}>ou explore</span>
+          <div style={{flex:1,height:"1px",background:`linear-gradient(to left,transparent,${C.border})`}}/>
+        </div>
+
+        {/* Sugestões */}
+        <div style={{display:"flex",flexDirection:"column",gap:10,animation:"up 0.5s ease 0.4s both"}}>
+          {sugestoes.map((s,i)=>(
+            <button key={i} type="button" className="sug"
+              onClick={()=>setMusicaEscolhida(s.m)}
+              style={{background:"transparent",border:`1px solid ${C.border}`,
+                borderLeft:`3px solid ${C.ouro}44`,borderRadius:12,
+                padding:"14px 18px",textAlign:"left",cursor:"pointer",
+                fontFamily:C.corpo,transition:"all 0.2s",
+                display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+              <span style={{fontSize:15,color:C.creme,fontStyle:"italic",lineHeight:1.4}}>{s.m}</span>
+              <span style={{fontSize:11,color:C.muted,flexShrink:0}}>{s.tags}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Rodapé — acesso para quem já usa */}
+        <div style={{marginTop:44,textAlign:"center",animation:"fadein 1s ease 0.8s both"}}>
+          <p style={{fontFamily:C.corpo,fontSize:11,color:C.muted,opacity:0.5,margin:"0 0 10px"}}>
+            Já tem seu arquipélago?
+          </p>
+          <button type="button" onClick={onEntrar}
+            style={{background:"transparent",border:`1px solid ${C.border}`,
+              color:C.muted,borderRadius:100,padding:"8px 22px",
+              fontSize:11,letterSpacing:"0.18em",textTransform:"uppercase",
+              cursor:"pointer",fontFamily:C.corpo,transition:"all 0.2s"}}>
+            Entrar no ONDA →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TELA DE CHEGADA — entrada via link compartilhado
 // ═══════════════════════════════════════════════════════════════════════════════
 function TelaChegada({linkData, onEntrarJornada, onVoltar}) {
@@ -2938,7 +3057,7 @@ export default function Onda() {
         if (tinhaLixo) save({...s, ilhas:ilhasLimpas, sessoes:sessoesLimpas});
         setTela("inicio"); // usuário que volta — vai direto ao arquipélago
       } else {
-        setTela("landing"); // primeiro acesso — mostra landing page
+        setTela("artista_entrada"); // primeiro acesso — vai para O Que o Artista Sabia
       }
     })();
   },[]);
@@ -3085,7 +3204,7 @@ export default function Onda() {
     setDesafioAceito(false);setDiario([]);setVerDiario(false);setVerDuo(false);
     setMusicas(null);setNovaIlha(null);setMusicaPedida("");setComentario("");
     try{await window.storage.delete(KEY);}catch{}
-    setTela("landing"); // volta para a landing ao recomeçar do zero
+    setTela("artista_entrada"); // volta para a entrada ao recomeçar do zero
   };
 
   if(tela==="carregando") return(
@@ -3096,12 +3215,17 @@ export default function Onda() {
 
   if(tela==="landing") return <OndaLanding onEntrar={()=>setTela("inicio")}/>;
 
+  // Nova tela de entrada — O Que o Artista Sabia (primeiro contato)
+  if(tela==="artista_entrada") return (
+    <TelaArtistaEntrada onEntrar={()=>setTela("inicio")}/>
+  );
+
   // Tela de chegada via link — "O Que o Artista Sabia"
   if(tela==="artista") return (
     <TelaChegada
       linkData={linkData||{musica:"",artista:"",quemCompartilhou:""}}
       onEntrarJornada={()=>{ setLinkData(null); setTela("inicio"); }}
-      onVoltar={()=>setTela("landing")}
+      onVoltar={()=>setTela("artista_entrada")}
     />
   );
 
