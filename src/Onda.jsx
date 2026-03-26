@@ -4,24 +4,24 @@ import { useState, useEffect, useRef, useCallback } from "react";
 // VOZ — Web Speech API (reconhecimento + síntese)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// Faz o Maestro falar — voz masculina pt-BR, funciona no Safari/macOS
+// Faz o Maestro falar — compatível com Safari (deve ser chamado direto de evento de clique)
 function falarMaestro(texto) {
   if (!window.speechSynthesis) return;
   window.speechSynthesis.cancel();
 
-  const limpo = texto.replace(/[\u{1F300}-\u{1FFFF}]/gu, "")
-                     .replace(/[→←↑↓♪🎼▶⏸]/g, "")
-                     .trim();
+  const limpo = texto
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, "")
+    .replace(/[→←↑↓♪🎼▶⏸]/g, "")
+    .trim();
 
-  const utter = new SpeechSynthesisUtterance(limpo);
-  utter.lang = "pt-BR";
-  utter.rate = 0.88;
-  utter.pitch = 0.82;
-  utter.volume = 1;
+  if (!limpo) return;
 
-  // Função de seleção — roda depois que vozes carregam (Safari é assíncrono)
-  const escolherVoz = () => {
-    const vozes = window.speechSynthesis.getVoices();
+  const falar = (vozes) => {
+    const utter = new SpeechSynthesisUtterance(limpo);
+    utter.lang = "pt-BR";
+    utter.rate = 0.88;
+    utter.pitch = 0.82;
+    utter.volume = 1;
 
     // Vozes masculinas pt-BR em ordem de preferência (macOS Safari)
     const preferidas = [
@@ -29,7 +29,7 @@ function falarMaestro(texto) {
       "Grandpa (Portuguese (Brazil))",
       "Rocko (Portuguese (Brazil))",
       "Eddy (Portuguese (Brazil))",
-      "Luciana",       // feminina mas pt-BR — fallback
+      "Luciana",
     ];
 
     for (const nome of preferidas) {
@@ -37,21 +37,37 @@ function falarMaestro(texto) {
       if (voz) { utter.voice = voz; break; }
     }
 
-    // Se nenhuma encontrada, tenta qualquer pt-BR exceto pt-PT
+    // Fallback: qualquer pt-BR exceto pt-PT
     if (!utter.voice) {
       const ptBR = vozes.find(v => v.lang === "pt-BR");
       if (ptBR) utter.voice = ptBR;
     }
+
+    // Safari fix: às vezes trava após longa fala — keepalive
+    const keepalive = setInterval(() => {
+      if (!window.speechSynthesis.speaking) { clearInterval(keepalive); return; }
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 10000);
+
+    utter.onend = () => clearInterval(keepalive);
+    utter.onerror = () => clearInterval(keepalive);
 
     window.speechSynthesis.speak(utter);
   };
 
   const vozes = window.speechSynthesis.getVoices();
   if (vozes.length > 0) {
-    escolherVoz();
+    falar(vozes);
   } else {
-    // Safari carrega vozes de forma assíncrona
-    window.speechSynthesis.onvoiceschanged = () => { escolherVoz(); };
+    // Safari carrega vozes assincronamente — aguarda e tenta de novo
+    const tentativas = [500, 1000, 2000];
+    tentativas.forEach(delay => {
+      setTimeout(() => {
+        const v = window.speechSynthesis.getVoices();
+        if (v.length > 0 && !window.speechSynthesis.speaking) falar(v);
+      }, delay);
+    });
   }
 }
 
@@ -62,7 +78,7 @@ function useMicrofone(onResultado) {
 
   const iniciar = useCallback(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { alert("Seu browser não suporta reconhecimento de voz. Use Chrome."); return; }
+    if (!SR) { alert("Reconhecimento de voz não suportado neste browser. Use Safari ou Chrome."); return; }
     if (recRef.current) recRef.current.abort();
     const rec = new SR();
     rec.lang = "pt-BR";
@@ -734,29 +750,34 @@ function IndCamada({n}) {
 }
 
 // Balão do Maestro
-function BalaM({texto,delay=0}) {
+function BalaM({texto, delay=0}) {
   const [falando, setFalando] = useState(false);
+  const timerRef = useRef(null);
 
-  const toggleFala = () => {
+  // Limpa timer ao desmontar
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  // Safari exige que speak() seja chamado DIRETAMENTE de um evento de clique
+  // Por isso toda a lógica fica no onClick, sem intermediários assíncronos
+  const handleClick = () => {
     if (falando) {
       window.speechSynthesis?.cancel();
       setFalando(false);
+      clearTimeout(timerRef.current);
     } else {
-      falarMaestro(texto);
       setFalando(true);
-      // Estima duração e reseta o ícone ao terminar
-      const palavras = texto.split(/\s+/).length;
-      const ms = (palavras / 110) * 60000 * (1 / 0.88);
-      setTimeout(() => setFalando(false), ms + 600);
+      falarMaestro(texto); // chamado direto do evento de clique — Safari aceita
+      // Estima duração para resetar o ícone (~110 palavras/min a rate 0.88)
+      const ms = (texto.split(/\s+/).length / 110) * 60000 / 0.88;
+      timerRef.current = setTimeout(() => setFalando(false), ms + 800);
     }
   };
 
-  if(!texto) return null;
+  if (!texto) return null;
   return (
-    <div style={{display:"flex",gap:12,marginBottom:22,animation:`up 0.5s ease ${delay}s both`}}>
-      {/* Avatar clicável — ouve ao clicar */}
+    <div style={{display:"flex", gap:12, marginBottom:22, animation:`up 0.5s ease ${delay}s both`}}>
       <div
-        onClick={toggleFala}
+        onClick={handleClick}
         title={falando ? "Pausar" : "Ouvir O Maestro"}
         style={{
           flexShrink:0, width:42, height:42, borderRadius:"50%",
@@ -765,23 +786,25 @@ function BalaM({texto,delay=0}) {
           display:"flex", alignItems:"center", justifyContent:"center",
           fontSize:18, cursor:"pointer", transition:"all 0.25s",
           boxShadow: falando ? `0 0 22px ${C.ouro}88` : `0 0 14px ${C.ouro}22`,
+          userSelect:"none", WebkitTapHighlightColor:"transparent",
         }}>
         {falando ? "⏸" : "🎼"}
       </div>
-      <div style={{background:C.card,border:`1px solid ${C.ouro}22`,
-        borderRadius:"4px 14px 14px 14px",padding:"12px 16px",flex:1,
+      <div style={{
+        background:C.card, border:`1px solid ${C.ouro}22`,
+        borderRadius:"4px 14px 14px 14px", padding:"12px 16px", flex:1,
+        outline: falando ? `1px solid ${C.ouro}33` : "none",
         transition:"outline 0.3s",
-        outline: falando ? `1px solid ${C.ouro}33` : "none"}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-          <div style={{fontSize:8,letterSpacing:"0.45em",textTransform:"uppercase",
-            color:C.ouro,fontWeight:700,fontFamily:C.corpo}}>O MAESTRO</div>
-          {/* Indicador de que é clicável — só aparece em hover implícito */}
-          <div style={{fontSize:9,color:C.muted,fontFamily:C.corpo,opacity:0.6}}>
-            {falando ? "▶ ouvindo…" : "🎼 clique para ouvir"}
+      }}>
+        <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
+          <div style={{fontSize:8, letterSpacing:"0.45em", textTransform:"uppercase",
+            color:C.ouro, fontWeight:700, fontFamily:C.corpo}}>O MAESTRO</div>
+          <div style={{fontSize:9, color:C.muted, fontFamily:C.corpo, opacity:0.55}}>
+            {falando ? "▶ ouvindo…" : "🎼 toque para ouvir"}
           </div>
         </div>
-        <p style={{fontSize:17,lineHeight:1.85,color:C.creme,margin:0,
-          fontStyle:"italic",fontFamily:C.corpo}}>{texto}</p>
+        <p style={{fontSize:17, lineHeight:1.85, color:C.creme, margin:0,
+          fontStyle:"italic", fontFamily:C.corpo}}>{texto}</p>
       </div>
     </div>
   );
