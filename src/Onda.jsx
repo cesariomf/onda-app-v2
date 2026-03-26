@@ -317,11 +317,12 @@ async function ai(prompt, sistema = "", tentativas = 3) {
 }
 
 // Versão com web search — usada para "O Que o Artista Sabia"
-// O modelo pesquisa antes de escrever, garantindo fatos reais
+// Faz 3 buscas distintas (autoria, declarações do artista, contexto histórico)
+// antes de escrever, garantindo texto factual E emocional
 async function aiComBusca(prompt, sistema = "") {
   const body = {
     model:"claude-sonnet-4-20250514",
-    max_tokens:4000,
+    max_tokens:6000,
     tools:[{ type:"web_search_20250305", name:"web_search" }],
     messages:[{role:"user",content:prompt}]
   };
@@ -338,15 +339,12 @@ async function aiComBusca(prompt, sistema = "") {
   }
   const d = await r.json();
 
-  // A resposta pode conter blocos de vários tipos:
-  // tool_use (buscas feitas), tool_result (resultados), text (a resposta final)
-  // Extraímos apenas os blocos de texto — que contêm a história do Maestro
+  // Extrai apenas os blocos de texto — a história escrita pelo Maestro
   const textos = (d.content || [])
     .filter(c => c.type === "text")
     .map(c => c.text || "")
     .join("");
 
-  // Se não veio texto (improvável), fallback para tudo
   return textos || (d.content || []).map(c => c.text || "").join("");
 }
 
@@ -507,26 +505,61 @@ Retorne APENAS JSON sem markdown: {"nome":"","origem":"","mundoMusical":"","padr
 
   artista: (musica, artista) => `Você é O Maestro. Alguém trouxe esta música: "${musica}"${artista && artista !== musica ? ` de ${artista}` : ""}.
 
-ETAPA 1 — PESQUISA OBRIGATÓRIA:
-Use a ferramenta web_search para buscar fatos reais sobre esta música antes de escrever qualquer coisa.
-Busque: autoria exata, ano de composição, álbum, contexto histórico e pessoal do artista.
-Queries sugeridas: "${musica} ${artista || ""} história composição" e "${musica} ${artista || ""} letra significado contexto".
+━━━ FASE 1 — PESQUISA JORNALÍSTICA ━━━
 
-ETAPA 2 — VERIFICAÇÃO DE AUTORIA:
-Com os resultados em mãos, confirme: quem compôs? Quem gravou? Quando?
-Nunca atribua uma música ao artista errado. "Que País é Este" é da Legião Urbana / Renato Russo, não do Cazuza.
+Faça TRÊS buscas distintas antes de escrever qualquer palavra:
 
-ETAPA 3 — ESCREVA A HISTÓRIA:
-Com os fatos verificados, escreva "O Que o Artista Sabia".
-- O que o artista estava vivendo quando criou esta obra (contexto real, verificado)
-- O que ele captou do espírito humano — o que ele nomeou que as pessoas sentem mas não conseguem verbalizar
-- Fatos concretos, não generalidades. Se não encontrou algo específico, não invente — trabalhe com o que sabe
-- Tom: O Maestro Provocador Afetivo — culto, caloroso, preciso. História que prende, não artigo acadêmico
-- 3 parágrafos curtos. Densos mas acessíveis
-- Termine com UMA pergunta que conecta a história ao momento presente do usuário
+Busca 1 — Autoria e fatos básicos:
+"${musica} ${artista || ""} compositor ano álbum história"
+→ Confirme: quem compôs (não quem gravou — quem escreveu), em que ano, em que contexto de vida.
 
-Formato da resposta final:
-HISTORIA: [3 parágrafos baseados nos fatos pesquisados]
+Busca 2 — O momento pessoal do artista:
+"${artista || musica} entrevista depoimento processo criativo ${musica}"
+→ Busque o que o próprio artista disse sobre esta música: entrevistas, declarações, notas de encarte.
+
+Busca 3 — O contexto histórico real:
+"${musica} ${artista || ""} contexto histórico político social significado"
+→ O que estava acontecendo no Brasil (ou no mundo) quando a música foi criada — fatos verificáveis, não generalidades.
+
+Com os resultados das três buscas em mãos:
+- Confirme autoria. Se houver conflito entre fontes, use a mais confiável (encarte original > Wikipedia > blogs).
+- Selecione os 3-4 fatos mais concretos e específicos que encontrou.
+- Descarte tudo que for vago ou que você não conseguiu verificar.
+
+━━━ FASE 2 — ESCRITA DO MAESTRO ━━━
+
+Agora escreva "O Que o Artista Sabia" usando APENAS os fatos verificados na Fase 1.
+
+Estrutura dos 3 parágrafos:
+
+PARÁGRAFO 1 — O momento concreto:
+Um fato específico e verificado sobre o que o artista estava vivendo quando criou esta obra.
+Não "ele vivia numa época difícil". Sim: o que aconteceu, onde, quando, com quem.
+Se encontrou uma declaração direta do artista — use. É ouro.
+
+PARÁGRAFO 2 — O que ele capturou:
+O que a música nomeia que as pessoas sentem mas não conseguem verbalizar.
+Conecte o fato do parágrafo 1 com algo universalmente humano.
+Seja específico — não "tristeza" ou "angústia", mas o tipo exato de sentimento que só esta música toca.
+
+PARÁGRAFO 3 — Por que ainda ressoa:
+Uma observação inesperada sobre por que esta música continua fazendo sentido hoje.
+O Maestro não explica — ele aponta algo que o ouvinte já sentiu mas não tinha nomeado.
+
+PERGUNTA FINAL:
+Uma pergunta que só faz sentido depois de ouvir esta história específica.
+Não genérica. Que nasça diretamente do que foi dito nos 3 parágrafos.
+Curta. Precisa. Com a voz do Provocador Afetivo.
+
+Tom geral: culto mas não acadêmico. Caloroso mas não efusivo. Preciso — cada palavra tem peso.
+Se um fato não foi verificado, não aparece. Prefira dizer menos com certeza do que muito com dúvida.
+
+Formato obrigatório da resposta:
+HISTORIA: [parágrafo 1]
+
+[parágrafo 2]
+
+[parágrafo 3]
 PERGUNTA: [a pergunta do Maestro]`,
 
   artistaSugestoes: (musica, artista, resposta) => `Diálogo:
@@ -1806,9 +1839,10 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
 
   if (etapa === "carregando") return (
     <div style={{...fundo, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16}}>
-      <div style={{fontSize:32}}>🎼</div>
-      <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic", textAlign:"center"}}>
-        O Maestro está procurando a história por trás desta música…
+      <div style={{fontSize:32, animation:"pulse 2s ease infinite"}}>🎼</div>
+      <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic", textAlign:"center", lineHeight:1.7}}>
+        O Maestro está pesquisando…<br/>
+        <span style={{fontSize:13, opacity:0.6}}>autoria · declarações do artista · contexto histórico</span>
       </p>
     </div>
   );
