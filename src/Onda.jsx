@@ -1,6 +1,64 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// VOZ — Web Speech API (reconhecimento + síntese)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Faz o Maestro falar — voz grave, pausada, portuguesa
+function falarMaestro(texto) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  // Remove emojis e símbolos que atrapalham a leitura
+  const limpo = texto.replace(/[\u{1F300}-\u{1FFFF}]/gu, "")
+                     .replace(/[→←↑↓♪🎼]/g, "")
+                     .trim();
+  const utter = new SpeechSynthesisUtterance(limpo);
+  utter.lang = "pt-BR";
+  utter.rate = 0.88;   // um pouco mais lento — presença analítica
+  utter.pitch = 0.85;  // mais grave
+  utter.volume = 1;
+  // Tenta encontrar uma voz pt-BR masculina
+  const vozes = window.speechSynthesis.getVoices();
+  const ptBR = vozes.filter(v => v.lang.startsWith("pt"));
+  const masculina = ptBR.find(v => /male|masc|daniel|ricardo|raimundo|paulo/i.test(v.name));
+  if (masculina) utter.voice = masculina;
+  else if (ptBR[0]) utter.voice = ptBR[0];
+  window.speechSynthesis.speak(utter);
+}
+
+// Hook de reconhecimento de voz
+function useMicrofone(onResultado) {
+  const [ouvindo, setOuvindo] = useState(false);
+  const recRef = useRef(null);
+
+  const iniciar = useCallback(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { alert("Seu browser não suporta reconhecimento de voz. Use Chrome."); return; }
+    if (recRef.current) recRef.current.abort();
+    const rec = new SR();
+    rec.lang = "pt-BR";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onstart = () => setOuvindo(true);
+    rec.onend   = () => setOuvindo(false);
+    rec.onerror = () => setOuvindo(false);
+    rec.onresult = (e) => {
+      const texto = e.results[0][0].transcript;
+      onResultado(texto);
+    };
+    recRef.current = rec;
+    rec.start();
+  }, [onResultado]);
+
+  const parar = useCallback(() => {
+    recRef.current?.stop();
+    setOuvindo(false);
+  }, []);
+
+  return { ouvindo, iniciar, parar };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 const KEY = "onda_v6";
@@ -526,15 +584,38 @@ const LABEL_C = {
 // ═══════════════════════════════════════════════════════════════════════════════
 function TA({v,set,enter,ph}) {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const { ouvindo, iniciar, parar } = useMicrofone((texto) => {
+    set(prev => (prev ? prev + " " + texto : texto));
+  });
+
   return (
     <div style={{position:"relative"}}>
       <textarea value={v} onChange={e=>set(e.target.value)} placeholder={ph}
         onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!isMobile){e.preventDefault();enter?.();}}}
-        style={{width:"100%",background:"#05070C",border:`1px solid ${C.border}`,borderRadius:10,
-          padding:"14px 18px",fontSize:17,fontFamily:C.corpo,color:C.creme,
+        style={{width:"100%",background:"#05070C",border:`1px solid ${ouvindo ? C.verdeclaro : C.border}`,
+          borderRadius:10, padding:"14px 52px 14px 18px",fontSize:17,fontFamily:C.corpo,color:C.creme,
           resize:"none",minHeight:100,outline:"none",lineHeight:1.65,
           transition:"border-color 0.2s",WebkitAppearance:"none",
           touchAction:"manipulation"}}/>
+      {/* Botão microfone — dentro do campo, canto inferior direito */}
+      <button
+        type="button"
+        onPointerDown={iniciar}
+        onPointerUp={parar}
+        onPointerLeave={parar}
+        title={ouvindo ? "Ouvindo… solte para parar" : "Segure para falar"}
+        style={{
+          position:"absolute", right:10, bottom:10,
+          width:36, height:36, borderRadius:"50%",
+          background: ouvindo ? C.verdeclaro : C.faint,
+          border: `1px solid ${ouvindo ? C.verdeclaro : C.border}`,
+          cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize:16, transition:"all 0.2s",
+          boxShadow: ouvindo ? `0 0 12px ${C.verdeclaro}88` : "none",
+          WebkitTapHighlightColor:"transparent",
+        }}>
+        {ouvindo ? "🔴" : "🎤"}
+      </button>
     </div>
   );
 }
@@ -610,18 +691,52 @@ function IndCamada({n}) {
 }
 
 // Balão do Maestro
-function BalaM({texto,delay=0}) {
+function BalaM({texto,delay=0,autoFalar=true}) {
+  const [falando, setFalando] = useState(false);
+  const jaFalou = useRef(false);
+
+  useEffect(() => {
+    if (!texto || !autoFalar || jaFalou.current) return;
+    jaFalou.current = true;
+    // Pequeno delay para o componente renderizar antes de falar
+    const t = setTimeout(() => {
+      falarMaestro(texto);
+      setFalando(true);
+      // Estima duração da fala (≈110 palavras por minuto a rate 0.88)
+      const palavras = texto.split(/\s+/).length;
+      const ms = (palavras / 110) * 60000 * (1/0.88);
+      setTimeout(() => setFalando(false), ms + 500);
+    }, delay * 1000 + 300);
+    return () => clearTimeout(t);
+  }, [texto]);
+
+  const toggleFala = () => {
+    if (falando) {
+      window.speechSynthesis?.cancel();
+      setFalando(false);
+    } else {
+      falarMaestro(texto);
+      setFalando(true);
+    }
+  };
+
   if(!texto) return null;
   return (
     <div style={{display:"flex",gap:12,marginBottom:22,animation:`up 0.5s ease ${delay}s both`}}>
       <div style={{flexShrink:0,width:42,height:42,borderRadius:"50%",
         background:`linear-gradient(135deg, #1A1A2E, #2A2A4E)`,
         border:`2px solid ${C.ouro}66`,display:"flex",alignItems:"center",
-        justifyContent:"center",fontSize:18,boxShadow:`0 0 14px ${C.ouro}22`}}>
-        🎼
+        justifyContent:"center",fontSize:18,boxShadow:`0 0 14px ${C.ouro}22`,
+        cursor:"pointer", transition:"box-shadow 0.2s",
+        boxShadow: falando ? `0 0 20px ${C.ouro}66` : `0 0 14px ${C.ouro}22`}}
+        onClick={toggleFala}
+        title={falando ? "Pausar" : "Ouvir Maestro"}>
+        {falando ? "⏸" : "🎼"}
       </div>
       <div style={{background:C.card,border:`1px solid ${C.ouro}22`,
-        borderRadius:"4px 14px 14px 14px",padding:"12px 16px",flex:1}}>
+        borderRadius:"4px 14px 14px 14px",padding:"12px 16px",flex:1,
+        outline: falando ? `1px solid ${C.ouro}44` : "none",
+        transition:"outline 0.3s"}}>
         <div style={{fontSize:8,letterSpacing:"0.45em",textTransform:"uppercase",
           color:C.ouro,fontWeight:700,marginBottom:6,fontFamily:C.corpo}}>O MAESTRO</div>
         <p style={{fontSize:17,lineHeight:1.85,color:C.creme,margin:0,
