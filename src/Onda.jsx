@@ -308,13 +308,46 @@ async function ai(prompt, sistema = "", tentativas = 3) {
       return d.content?.map(c=>c.text||"").join("")||"";
     } catch(e) {
       if (t < tentativas - 1) {
-        // Espera antes de tentar de novo: 1s, 2s, 4s
         await new Promise(res => setTimeout(res, 1000 * Math.pow(2, t)));
         continue;
       }
       throw e;
     }
   }
+}
+
+// Versão com web search — usada para "O Que o Artista Sabia"
+// O modelo pesquisa antes de escrever, garantindo fatos reais
+async function aiComBusca(prompt, sistema = "") {
+  const body = {
+    model:"claude-sonnet-4-20250514",
+    max_tokens:4000,
+    tools:[{ type:"web_search_20250305", name:"web_search" }],
+    messages:[{role:"user",content:prompt}]
+  };
+  if (sistema) body.system = sistema;
+
+  const r = await fetch("/api/claude", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const txt = await r.text().catch(()=>"");
+    throw new Error(`API ${r.status}: ${txt.slice(0,100)}`);
+  }
+  const d = await r.json();
+
+  // A resposta pode conter blocos de vários tipos:
+  // tool_use (buscas feitas), tool_result (resultados), text (a resposta final)
+  // Extraímos apenas os blocos de texto — que contêm a história do Maestro
+  const textos = (d.content || [])
+    .filter(c => c.type === "text")
+    .map(c => c.text || "")
+    .join("");
+
+  // Se não veio texto (improvável), fallback para tudo
+  return textos || (d.content || []).map(c => c.text || "").join("");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -474,26 +507,27 @@ Retorne APENAS JSON sem markdown: {"nome":"","origem":"","mundoMusical":"","padr
 
   artista: (musica, artista) => `Você é O Maestro. Alguém trouxe esta música: "${musica}"${artista && artista !== musica ? ` de ${artista}` : ""}.
 
-PRIMEIRO — VERIFICAÇÃO OBRIGATÓRIA DE AUTORIA:
-Antes de escrever qualquer coisa, confirme mentalmente: quem compôs esta música? Quem a gravou originalmente? Em que álbum? Em que ano?
-- "Que País é Este" foi composta por Renato Russo, da Legião Urbana. Não é do Cazuza nem do Barão Vermelho.
-- Se você não tiver certeza absoluta sobre a autoria e os fatos, diga apenas o que sabe com certeza e omita o resto.
-- NUNCA atribua uma música ao artista errado. Isso é o erro mais grave que O Maestro pode cometer.
-- Se o usuário informou um artista incorreto, use o artista correto mesmo assim.
+ETAPA 1 — PESQUISA OBRIGATÓRIA:
+Use a ferramenta web_search para buscar fatos reais sobre esta música antes de escrever qualquer coisa.
+Busque: autoria exata, ano de composição, álbum, contexto histórico e pessoal do artista.
+Queries sugeridas: "${musica} ${artista || ""} história composição" e "${musica} ${artista || ""} letra significado contexto".
 
-Escreva "O Que o Artista Sabia" — a história real por trás desta música.
+ETAPA 2 — VERIFICAÇÃO DE AUTORIA:
+Com os resultados em mãos, confirme: quem compôs? Quem gravou? Quando?
+Nunca atribua uma música ao artista errado. "Que País é Este" é da Legião Urbana / Renato Russo, não do Cazuza.
 
-REGRAS:
-- Conte o que o artista estava vivendo quando criou esta obra: o contexto histórico, emocional, político, pessoal.
-- Mostre o que ele captou do espírito humano — o que ele nomeou que a maioria das pessoas sente mas não consegue verbalizar.
-- Fatos reais apenas. Se não tiver certeza de um detalhe, omita-o — não invente datas, contextos ou citações.
-- Tom: O Maestro Provocador Afetivo — culto, caloroso, com humor quando couber. Uma história que prende, não uma análise acadêmica.
-- Tamanho: 3 parágrafos curtos. Denso mas acessível.
-- Termine com UMA pergunta do Maestro que conecta a história ao momento presente do usuário.
+ETAPA 3 — ESCREVA A HISTÓRIA:
+Com os fatos verificados, escreva "O Que o Artista Sabia".
+- O que o artista estava vivendo quando criou esta obra (contexto real, verificado)
+- O que ele captou do espírito humano — o que ele nomeou que as pessoas sentem mas não conseguem verbalizar
+- Fatos concretos, não generalidades. Se não encontrou algo específico, não invente — trabalhe com o que sabe
+- Tom: O Maestro Provocador Afetivo — culto, caloroso, preciso. História que prende, não artigo acadêmico
+- 3 parágrafos curtos. Densos mas acessíveis
+- Termine com UMA pergunta que conecta a história ao momento presente do usuário
 
-Formato:
-HISTORIA: [3 parágrafos]
-PERGUNTA: [a pergunta final do Maestro]`,
+Formato da resposta final:
+HISTORIA: [3 parágrafos baseados nos fatos pesquisados]
+PERGUNTA: [a pergunta do Maestro]`,
 
   artistaSugestoes: (musica, artista, resposta) => `Diálogo:
 Música: "${musica}" de ${artista}
@@ -1739,7 +1773,7 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
   useEffect(() => {
     (async () => {
       try {
-        const raw = await ai(Q.artista(musica, nomeArtista), MAESTRO_SYS(null, 1, []));
+        const raw = await aiComBusca(Q.artista(musica, nomeArtista), MAESTRO_SYS(null, 1, []));
         const hist = raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim() || raw;
         const perg = raw.match(/PERGUNTA:\s*([\s\S]*?)$/i)?.[1]?.trim() || "Isso ressoa com algo que você está vivendo?";
         setHistoria(hist);
