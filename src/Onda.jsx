@@ -511,26 +511,29 @@ Faça TRÊS buscas distintas antes de escrever qualquer palavra:
 
 Busca 1 — Autoria e fatos básicos:
 "${musica} ${artista || ""} compositor ano álbum história"
-→ Confirme: quem compôs (não quem gravou — quem escreveu), em que ano, em que contexto de vida.
+→ Confirme: quem compôs, em que ano, em que contexto de vida.
+→ REGISTRE: nome do autor do artigo, veículo (revista, jornal, site), ano de publicação.
 
 Busca 2 — O momento pessoal do artista:
 "${artista || musica} entrevista depoimento processo criativo ${musica}"
-→ Busque o que o próprio artista disse sobre esta música: entrevistas, declarações, notas de encarte.
+→ O que o próprio artista disse sobre esta música: entrevistas, declarações, notas de encarte.
+→ REGISTRE: nome do jornalista que fez a entrevista, veículo, ano. Se for o encarte do disco, registre isso.
 
-Busca 3 — O contexto histórico real:
-"${musica} ${artista || ""} contexto histórico político social significado"
-→ O que estava acontecendo no Brasil (ou no mundo) quando a música foi criada — fatos verificáveis, não generalidades.
+Busca 3 — Análise crítica e contexto:
+"${musica} ${artista || ""} crítica análise jornalismo cultural significado"
+→ O que críticos e jornalistas culturais escreveram sobre esta música.
+→ REGISTRE: nome do crítico ou jornalista, veículo (Folha, O Globo, Piauí, Rolling Stone BR, Valor, etc.), ano.
 
-Com os resultados das três buscas em mãos:
-- Confirme autoria. Se houver conflito entre fontes, use a mais confiável (encarte original > Wikipedia > blogs).
-- Selecione os 3-4 fatos mais concretos e específicos que encontrou.
-- Descarte tudo que for vago ou que você não conseguiu verificar.
+Durante a pesquisa, para CADA fonte que usar:
+- Anote o nome do autor/jornalista se aparecer no artigo (byline)
+- Anote o veículo (jornal, revista, site especializado)
+- Anote o ano de publicação se disponível
+- Prefira: jornais e revistas de referência > sites especializados > Wikipedia > blogs
+- Ignore fontes sem autor identificado quando houver alternativas com autor
 
 ━━━ FASE 2 — ESCRITA DO MAESTRO ━━━
 
 Agora escreva "O Que o Artista Sabia" usando APENAS os fatos verificados na Fase 1.
-
-Estrutura dos 3 parágrafos:
 
 PARÁGRAFO 1 — O momento concreto:
 Um fato específico e verificado sobre o que o artista estava vivendo quando criou esta obra.
@@ -540,27 +543,41 @@ Se encontrou uma declaração direta do artista — use. É ouro.
 PARÁGRAFO 2 — O que ele capturou:
 O que a música nomeia que as pessoas sentem mas não conseguem verbalizar.
 Conecte o fato do parágrafo 1 com algo universalmente humano.
-Seja específico — não "tristeza" ou "angústia", mas o tipo exato de sentimento que só esta música toca.
+Específico — não "tristeza", mas o tipo exato de sentimento que só esta música toca.
 
 PARÁGRAFO 3 — Por que ainda ressoa:
-Uma observação inesperada sobre por que esta música continua fazendo sentido hoje.
-O Maestro não explica — ele aponta algo que o ouvinte já sentiu mas não tinha nomeado.
+Uma observação sobre por que esta música continua fazendo sentido hoje.
+O Maestro aponta algo que o ouvinte já sentiu mas não tinha nomeado.
 
 PERGUNTA FINAL:
-Uma pergunta que só faz sentido depois de ouvir esta história específica.
-Não genérica. Que nasça diretamente do que foi dito nos 3 parágrafos.
-Curta. Precisa. Com a voz do Provocador Afetivo.
+Uma pergunta que nasça diretamente do que foi dito. Curta. Precisa. Com a voz do Provocador Afetivo.
 
-Tom geral: culto mas não acadêmico. Caloroso mas não efusivo. Preciso — cada palavra tem peso.
-Se um fato não foi verificado, não aparece. Prefira dizer menos com certeza do que muito com dúvida.
+Tom: culto mas não acadêmico. Caloroso mas não efusivo. Preciso.
+Se um fato não foi verificado, não aparece.
 
-Formato obrigatório da resposta:
+━━━ FORMATO OBRIGATÓRIO DA RESPOSTA ━━━
+
 HISTORIA: [parágrafo 1]
 
 [parágrafo 2]
 
 [parágrafo 3]
-PERGUNTA: [a pergunta do Maestro]`,
+PERGUNTA: [a pergunta do Maestro]
+FONTES: [lista de fontes no formato abaixo — inclua APENAS as que realmente usou]
+
+Formato de cada fonte (uma por linha):
+- [Nome do Jornalista/Autor] · [Veículo] · [Ano]
+  (se não encontrou o autor: apenas · [Veículo] · [Ano])
+  (se for declaração do próprio artista: [Nome do Artista], encarte/entrevista · [Ano])
+
+Exemplos válidos:
+- Humberto Werneck · Jornal do Brasil · 1987
+- Pedro Alexandre Sanches · Folha de S.Paulo · 2001
+- Renato Russo, encarte do álbum "Que País É Este" · EMI-Odeon · 1987
+- Rolling Stone Brasil · 2013
+- Wikipedia (sem autor identificado)
+
+Inclua no mínimo 2 fontes, no máximo 5. Priorize jornalistas nomeados sobre veículos anônimos.`,
 
   artistaSugestoes: (musica, artista, resposta) => `Diálogo:
 Música: "${musica}" de ${artista}
@@ -1791,9 +1808,10 @@ const ILHAS_LAND=[
 // O QUE O ARTISTA SABIA — tela principal do novo fluxo
 // ═══════════════════════════════════════════════════════════════════════════════
 function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVoltar}) {
-  const [etapa, setEtapa] = useState("carregando"); // carregando | historia | resposta | sugestoes
+  const [etapa, setEtapa] = useState("carregando");
   const [historia, setHistoria] = useState("");
   const [pergunta, setPergunta] = useState("");
+  const [fontes, setFontes] = useState([]); // [{autor, veiculo, ano}]
   const [resposta, setResposta] = useState("");
   const [sugestoes, setSugestoes] = useState([]);
   const [convite, setConvite] = useState("");
@@ -1807,10 +1825,25 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
     (async () => {
       try {
         const raw = await aiComBusca(Q.artista(musica, nomeArtista), MAESTRO_SYS(null, 1, []));
+
+        // Extrai HISTORIA (para antes de PERGUNTA)
         const hist = raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim() || raw;
-        const perg = raw.match(/PERGUNTA:\s*([\s\S]*?)$/i)?.[1]?.trim() || "Isso ressoa com algo que você está vivendo?";
+
+        // Extrai PERGUNTA (para antes de FONTES)
+        const perg = raw.match(/PERGUNTA:\s*([\s\S]*?)(?=FONTES:|$)/i)?.[1]?.trim()
+                  || "Isso ressoa com algo que você está vivendo?";
+
+        // Extrai FONTES — cada linha começando com "- "
+        const fontesRaw = raw.match(/FONTES:\s*([\s\S]*?)$/i)?.[1]?.trim() || "";
+        const fontesLista = fontesRaw
+          .split("\n")
+          .map(l => l.replace(/^[-•]\s*/, "").trim())
+          .filter(l => l.length > 3)
+          .slice(0, 5);
+
         setHistoria(hist);
         setPergunta(perg);
+        setFontes(fontesLista);
         setEtapa("historia");
       } catch {
         setErro("O Maestro não conseguiu carregar a história agora. Tente de novo.");
@@ -1902,27 +1935,72 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
         </div>
       )}
 
-      {/* Fontes — pesquisar mais */}
+      {/* Fontes — jornalistas e críticos consultados */}
       {historia && (
         <div style={{
-          marginBottom:24, padding:"12px 20px",
+          marginBottom:24, padding:"16px 20px",
           border:`1px solid ${C.border}`, borderRadius:12,
           background:"transparent", animation:"up 0.4s ease 0.2s both",
         }}>
-          <p style={{fontFamily:C.corpo, fontSize:10, letterSpacing:"0.35em",
-            textTransform:"uppercase", color:C.muted, margin:"0 0 10px", opacity:0.7}}>
+          <p style={{
+            fontFamily:C.corpo, fontSize:10, letterSpacing:"0.35em",
+            textTransform:"uppercase", color:C.ouro, margin:"0 0 12px",
+            fontWeight:700, opacity:0.8,
+          }}>
+            Fontes consultadas
+          </p>
+
+          {/* Jornalistas/autores identificados */}
+          {fontes.length > 0 && (
+            <div style={{marginBottom:14}}>
+              {fontes.map((f, i) => {
+                // Detecta se tem nome de autor (contém " · " com algo antes)
+                const partes = f.split(" · ");
+                const temAutor = partes.length >= 2 && !f.startsWith("·");
+                const autor = temAutor ? partes[0] : null;
+                const resto = temAutor ? partes.slice(1).join(" · ") : f;
+                return (
+                  <div key={i} style={{
+                    display:"flex", alignItems:"flex-start", gap:10,
+                    marginBottom:8, paddingBottom:8,
+                    borderBottom: i < fontes.length-1 ? `1px solid ${C.border}` : "none",
+                  }}>
+                    <span style={{color:C.ouro, fontSize:12, marginTop:1, flexShrink:0}}>✦</span>
+                    <div>
+                      {autor && (
+                        <span style={{
+                          fontFamily:C.corpo, fontSize:14, color:C.creme,
+                          fontWeight:600, display:"block",
+                        }}>{autor}</span>
+                      )}
+                      <span style={{
+                        fontFamily:C.corpo, fontSize:12, color:C.muted,
+                        display:"block", lineHeight:1.5,
+                      }}>{resto}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Links para pesquisa adicional */}
+          <p style={{
+            fontFamily:C.corpo, fontSize:10, letterSpacing:"0.25em",
+            textTransform:"uppercase", color:C.muted, margin:"0 0 8px", opacity:0.6,
+          }}>
             Pesquisar mais sobre {nomeArtista}
           </p>
           <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
             {[
               {label:"Wikipedia", url:`https://pt.wikipedia.org/wiki/${encodeURIComponent(nomeArtista)}`},
               {label:"Letras.mus.br", url:`https://www.letras.mus.br/${encodeURIComponent(nomeArtista.toLowerCase().replace(/ /g,"-"))}/`},
-              {label:"Dicionário Cravo Albin", url:`https://dicionariompb.com.br/?s=${encodeURIComponent(nomeArtista)}`},
+              {label:"Dicionário MPB", url:`https://dicionariompb.com.br/?s=${encodeURIComponent(nomeArtista)}`},
               {label:"Discogs", url:`https://www.discogs.com/search/?q=${encodeURIComponent(nomeArtista)}&type=artist`},
             ].map((f,i) => (
               <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
                 style={{
-                  fontFamily:C.corpo, fontSize:12, color:C.muted,
+                  fontFamily:C.corpo, fontSize:11, color:C.muted,
                   background:C.faint, border:`1px solid ${C.border}`,
                   borderRadius:100, padding:"4px 12px",
                   textDecoration:"none", transition:"all 0.15s",
