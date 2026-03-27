@@ -1849,18 +1849,29 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
 
   return (
     <div style={fundo}>
-      {/* Cabeçalho */}
+      {/* Cabeçalho — música clicável para YouTube */}
       <div style={{marginBottom:32, textAlign:"center"}}>
         {quemCompartilhou && (
           <p style={{fontFamily:C.corpo, color:C.muted, fontSize:13, marginBottom:8}}>
             {quemCompartilhou} compartilhou com você
           </p>
         )}
-        <div style={{display:"inline-flex", alignItems:"center", gap:8, background:C.faint,
-          border:`1px solid ${C.border}`, borderRadius:100, padding:"6px 16px", marginBottom:16}}>
-          <span style={{color:C.verdeclaro, fontSize:16}}>♪</span>
+        <a
+          href={`https://www.youtube.com/results?search_query=${encodeURIComponent(musica)}`}
+          target="_blank" rel="noopener noreferrer"
+          style={{
+            display:"inline-flex", alignItems:"center", gap:8,
+            background:C.faint, border:`1px solid ${C.border}`,
+            borderRadius:100, padding:"6px 16px", marginBottom:16,
+            textDecoration:"none", cursor:"pointer",
+            transition:"all 0.2s",
+          }}
+          title="Ouvir no YouTube"
+        >
+          <span style={{color:"#ff4444", fontSize:15}}>▶</span>
           <span style={{fontFamily:C.corpo, color:C.creme, fontSize:15, fontStyle:"italic"}}>{musica}</span>
-        </div>
+          <span style={{fontFamily:C.corpo, color:C.muted, fontSize:11, letterSpacing:"0.05em"}}>YouTube</span>
+        </a>
         <p style={{fontFamily:C.corpo, color:C.ouro, fontSize:11, letterSpacing:"0.4em",
           textTransform:"uppercase", fontWeight:700}}>O que o artista sabia</p>
       </div>
@@ -1868,7 +1879,7 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
       {/* História */}
       {historia && (
         <div style={{background:C.card, border:`1px solid ${C.ouro}22`,
-          borderRadius:16, padding:"24px 28px", marginBottom:24,
+          borderRadius:16, padding:"24px 28px", marginBottom:16,
           animation:"up 0.6s ease both"}}>
           <div style={{display:"flex", gap:12, marginBottom:16}}>
             <div style={{flexShrink:0, width:42, height:42, borderRadius:"50%",
@@ -1888,6 +1899,38 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
               color:C.creme, margin:"0 0 16px", fontStyle:"italic"}}>{par}</p>
           ))}
           {erro && <p style={{color:"#E08080", fontFamily:C.corpo, fontSize:14}}>{erro}</p>}
+        </div>
+      )}
+
+      {/* Fontes — pesquisar mais */}
+      {historia && (
+        <div style={{
+          marginBottom:24, padding:"12px 20px",
+          border:`1px solid ${C.border}`, borderRadius:12,
+          background:"transparent", animation:"up 0.4s ease 0.2s both",
+        }}>
+          <p style={{fontFamily:C.corpo, fontSize:10, letterSpacing:"0.35em",
+            textTransform:"uppercase", color:C.muted, margin:"0 0 10px", opacity:0.7}}>
+            Pesquisar mais sobre {nomeArtista}
+          </p>
+          <div style={{display:"flex", flexWrap:"wrap", gap:8}}>
+            {[
+              {label:"Wikipedia", url:`https://pt.wikipedia.org/wiki/${encodeURIComponent(nomeArtista)}`},
+              {label:"Letras.mus.br", url:`https://www.letras.mus.br/${encodeURIComponent(nomeArtista.toLowerCase().replace(/ /g,"-"))}/`},
+              {label:"Dicionário Cravo Albin", url:`https://dicionariompb.com.br/?s=${encodeURIComponent(nomeArtista)}`},
+              {label:"Discogs", url:`https://www.discogs.com/search/?q=${encodeURIComponent(nomeArtista)}&type=artist`},
+            ].map((f,i) => (
+              <a key={i} href={f.url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  fontFamily:C.corpo, fontSize:12, color:C.muted,
+                  background:C.faint, border:`1px solid ${C.border}`,
+                  borderRadius:100, padding:"4px 12px",
+                  textDecoration:"none", transition:"all 0.15s",
+                }}>
+                {f.label} ↗
+              </a>
+            ))}
+          </div>
         </div>
       )}
 
