@@ -557,13 +557,15 @@ Se um fato não foi verificado, não aparece.
 
 ━━━ FORMATO OBRIGATÓRIO DA RESPOSTA ━━━
 
+Responda EXATAMENTE neste formato. Não adicione nenhum campo extra além dos listados abaixo.
+
 HISTORIA: [parágrafo 1]
 
 [parágrafo 2]
 
 [parágrafo 3]
-PERGUNTA: [a pergunta do Maestro]
-FONTES: [lista de fontes no formato abaixo — inclua APENAS as que realmente usou]
+PERGUNTA: [a pergunta do Maestro — UMA frase]
+FONTES: [lista de fontes — uma por linha, prefixada com "- "]
 
 Formato de cada fonte (uma por linha):
 - [Nome do Jornalista/Autor] · [Veículo] · [Ano]
@@ -1826,23 +1828,34 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
       try {
         const raw = await aiComBusca(Q.artista(musica, nomeArtista), MAESTRO_SYS(null, 1, []));
 
-        // Extrai HISTORIA (para antes de PERGUNTA)
-        const hist = raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim() || raw;
+        // Extrai HISTORIA — tudo entre HISTORIA: e PERGUNTA:
+        let hist = raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim() || raw;
 
-        // Extrai PERGUNTA (para antes de FONTES)
-        const perg = raw.match(/PERGUNTA:\s*([\s\S]*?)(?=FONTES:|$)/i)?.[1]?.trim()
+        // Extrai PERGUNTA — tudo entre PERGUNTA: e FONTES: (ou fim)
+        let perg = raw.match(/PERGUNTA:\s*([\s\S]*?)(?=FONTES:|ILHA|$)/i)?.[1]?.trim()
                   || "Isso ressoa com algo que você está vivendo?";
 
-        // Extrai FONTES — cada linha começando com "- "
-        const fontesRaw = raw.match(/FONTES:\s*([\s\S]*?)$/i)?.[1]?.trim() || "";
+        // Extrai FONTES — cada linha com "- " ou "• "
+        const fontesRaw = raw.match(/FONTES:\s*([\s\S]*?)(?=\*\*ILHA|ILHA_|$)/i)?.[1]?.trim() || "";
         const fontesLista = fontesRaw
           .split("\n")
-          .map(l => l.replace(/^[-•]\s*/, "").trim())
-          .filter(l => l.length > 3)
-          .slice(0, 5);
+          .map(l => l.replace(/^[-•*]\s*/, "").trim())
+          .filter(l => l.length > 3 && !/^FONTES/i.test(l))
+          .slice(0, 6);
 
-        setHistoria(hist);
-        setPergunta(perg);
+        // Limpa artefatos de formatação que o modelo pode deixar escapar
+        const limpar = (txt) => txt
+          .replace(/━+.*?━+/g, "")           // remove ━━━ TITULO ━━━
+          .replace(/\*\*[^*]+\*\*/g, "")      // remove **NEGRITO**
+          .replace(/^HIST[OÓ]RIA:\s*/im, "")  // remove "HISTÓRIA:" residual
+          .replace(/^PERGUNTA:\s*/im, "")      // remove "PERGUNTA:" residual
+          .replace(/^FONTES:[\s\S]*$/im, "")  // remove bloco FONTES residual
+          .replace(/^ILHA[_\s].*$/im, "")     // remove ILHA_SESSAO residual
+          .replace(/\n{3,}/g, "\n\n")         // normaliza espaços em branco
+          .trim();
+
+        setHistoria(limpar(hist));
+        setPergunta(limpar(perg));
         setFontes(fontesLista);
         setEtapa("historia");
       } catch {
