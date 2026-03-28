@@ -3230,7 +3230,8 @@ export default function Onda() {
   const [diario,setDiario]=useState([]);
   const [verDiario,setVerDiario]=useState(false);
   const [verDuo,setVerDuo]=useState(false);
-  const [linkData,setLinkData]=useState(null); // dados do link compartilhado
+  const [verArtista,setVerArtista]=useState(false);
+  const [linkData,setLinkData]=useState(null);
 
   useEffect(()=>{
     (async()=>{
@@ -3440,7 +3441,6 @@ export default function Onda() {
   );
 
   // Barra de navegação permanente
-  const [verArtista, setVerArtista] = useState(false);
   const telaAtiva = verDuo ? "duo" : verDiario ? "diario" : verSobre ? "sobre" : verArtista ? "artista" : "jornada";
 
   const NavBar = () => (
