@@ -1809,16 +1809,31 @@ const ILHAS_LAND=[
 // ═══════════════════════════════════════════════════════════════════════════════
 // O QUE O ARTISTA SABIA — tela principal do novo fluxo
 // ═══════════════════════════════════════════════════════════════════════════════
-function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVoltar}) {
+function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVoltar, onCompartilhar}) {
   const [etapa, setEtapa] = useState("carregando");
   const [historia, setHistoria] = useState("");
   const [pergunta, setPergunta] = useState("");
-  const [fontes, setFontes] = useState([]); // [{autor, veiculo, ano}]
+  const [fontes, setFontes] = useState([]);
   const [resposta, setResposta] = useState("");
   const [sugestoes, setSugestoes] = useState([]);
   const [convite, setConvite] = useState("");
   const [carregandoSug, setCarregandoSug] = useState(false);
   const [erro, setErro] = useState("");
+  const [musicaSugerida, setMusicaSugerida] = useState(null);
+
+  // Se clicou em "Ver história no ONDA" numa sugestão — abre nova instância
+  if (musicaSugerida) {
+    return (
+      <TelaArtista
+        musica={musicaSugerida}
+        artista={musicaSugerida.split(" — ")[0] || musicaSugerida}
+        quemCompartilhou={null}
+        onEntrarJornada={onEntrarJornada}
+        onCompartilhar={onCompartilhar}
+        onVoltar={()=>setMusicaSugerida(null)}
+      />
+    );
+  }
 
   const nomeArtista = artista || musica.split(" - ")[0] || "este artista";
   const nomeMusica = musica.includes(" - ") ? musica.split(" - ").slice(1).join(" - ") : musica;
@@ -2068,25 +2083,50 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
                   borderRadius:12, padding:"18px 20px", marginBottom:14,
                   animation:`up 0.4s ease ${i*0.1}s both`}}>
                   <p style={{fontFamily:C.corpo, fontSize:16, fontStyle:"italic",
-                    color:C.creme, margin:"0 0 6px"}}>{s.titulo}</p>
-                  <YTBtn query={s.yt} titulo={s.titulo}/>
+                    color:C.creme, margin:"0 0 10px"}}>{s.titulo}</p>
+                  {/* Dois botões por sugestão: YouTube e história no ONDA */}
+                  <div style={{display:"flex", gap:8, flexWrap:"wrap", marginBottom:10}}>
+                    <YTBtn query={s.yt} titulo={s.titulo}/>
+                    <button type="button"
+                      onClick={()=>setMusicaSugerida(s.titulo)}
+                      style={{
+                        background:"transparent", border:`1px solid ${C.border}`,
+                        color:C.muted, borderRadius:100, padding:"6px 14px",
+                        fontSize:12, letterSpacing:"0.1em", cursor:"pointer",
+                        fontFamily:C.corpo, transition:"all 0.2s",
+                      }}>
+                      Ver história no ONDA
+                    </button>
+                  </div>
                   <p style={{fontFamily:C.corpo, fontSize:14, color:C.creme,
-                    opacity:0.75, margin:"8px 0 0", lineHeight:1.7}}>{s.texto}</p>
+                    opacity:0.75, margin:0, lineHeight:1.7}}>{s.texto}</p>
                 </div>
               ))}
 
-              {/* Convite para entrar na jornada */}
+              {/* Dois caminhos ao final */}
               {convite && (
-                <div style={{marginTop:24, animation:"up 0.5s ease 0.4s both"}}>
+                <div style={{marginTop:28, animation:"up 0.5s ease 0.4s both"}}>
                   <BalaM texto={convite}/>
-                  <button type="button" onClick={onEntrarJornada}
-                    style={{width:"100%", background:C.ouro, color:"#fff", border:"none",
-                      borderRadius:14, padding:"20px 24px", fontSize:15,
-                      letterSpacing:"0.15em", textTransform:"uppercase", cursor:"pointer",
-                      fontFamily:C.corpo, boxShadow:`0 4px 28px ${C.ouro}55`,
-                      transition:"all 0.3s", marginTop:16, minHeight:56}}>
-                    Contar a minha música →
-                  </button>
+                  <div style={{display:"flex", flexDirection:"column", gap:12, marginTop:16}}>
+                    {/* Caminho 1 — compartilhar (Etapa 2) */}
+                    <button type="button" onClick={onCompartilhar || onEntrarJornada}
+                      style={{width:"100%", background:C.ouro, color:"#fff", border:"none",
+                        borderRadius:14, padding:"18px 24px", fontSize:15,
+                        letterSpacing:"0.15em", textTransform:"uppercase", cursor:"pointer",
+                        fontFamily:C.corpo, boxShadow:`0 4px 28px ${C.ouro}44`,
+                        transition:"all 0.3s", minHeight:56}}>
+                      Compartilhar esta música →
+                    </button>
+                    {/* Caminho 2 — arquipélago privado (Etapa 3) */}
+                    <button type="button" onClick={onEntrarJornada}
+                      style={{width:"100%", background:"transparent",
+                        border:`1px solid ${C.border}`,
+                        color:C.muted, borderRadius:14, padding:"16px 24px", fontSize:13,
+                        letterSpacing:"0.12em", textTransform:"uppercase", cursor:"pointer",
+                        fontFamily:C.corpo, transition:"all 0.2s"}}>
+                      Criar meu arquipélago emocional
+                    </button>
+                  </div>
                 </div>
               )}
             </>
