@@ -2253,7 +2253,7 @@ function TelaArtistaLivre({perfil, onEntrarJornada}) {
 // TELA DE ENTRADA — nova primeira página do ONDA
 // "O Que o Artista Sabia" como porta de entrada, sem landing de marketing
 // ═══════════════════════════════════════════════════════════════════════════════
-function TelaArtistaEntrada({onEntrar}) {
+function TelaArtistaEntrada({onEntrar, onCompartilhar}) {
   const [musicaEscolhida, setMusicaEscolhida] = useState(null);
   const [busca, setBusca] = useState("");
 
@@ -2273,6 +2273,9 @@ function TelaArtistaEntrada({onEntrar}) {
         artista={musicaEscolhida.split(" — ")[0] || musicaEscolhida}
         quemCompartilhou={null}
         onEntrarJornada={onEntrar}
+        onCompartilhar={onCompartilhar
+          ? ()=>onCompartilhar(musicaEscolhida, musicaEscolhida.split(" — ")[0])
+          : null}
         onVoltar={()=>setMusicaEscolhida(null)}
       />
     );
@@ -2371,16 +2374,322 @@ function TelaArtistaEntrada({onEntrar}) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // TELA DE CHEGADA — entrada via link compartilhado
 // ═══════════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════════
+// ETAPA 2 — TELA DE COMPARTILHAMENTO (remetente)
+// ═══════════════════════════════════════════════════════════════════════════════
+function TelaCompartilhar({musica, artista, nomeRemetente, onConcluir, onVoltar}) {
+  const [copiado, setCopiado] = useState(false);
+  const [linkGerado, setLinkGerado] = useState("");
+  const [gerando, setGerando] = useState(false);
+  const [outraMusica, setOutraMusica] = useState("");
+  const [musicaFinal, setMusicaFinal] = useState(musica);
+
+  const gerarECompartilhar = async (musicaParaEnviar) => {
+    setGerando(true);
+    try {
+      const codigo = gerarCodigo();
+      await saveLink(codigo, {
+        musica: musicaParaEnviar || musica,
+        artista: artista || (musicaParaEnviar || musica).split(" — ")[0],
+        quemCompartilhou: nomeRemetente || "alguém",
+      });
+      const url = `${window.location.origin}${window.location.pathname}?link=${codigo}`;
+      setLinkGerado(url);
+      if (navigator.share) {
+        await navigator.share({
+          title:"ONDA — Alguém pensou em você",
+          text:`"${musicaParaEnviar || musica}" — clique para descobrir o que este artista sabia.`,
+          url,
+        }).catch(()=>{});
+      }
+    } catch {}
+    setGerando(false);
+  };
+
+  const copiar = () => {
+    navigator.clipboard?.writeText(linkGerado);
+    setCopiado(true);
+    setTimeout(()=>setCopiado(false), 2500);
+  };
+
+  const fundo = {minHeight:"100vh", background:C.bg, padding:"44px 24px 80px",
+    maxWidth:580, margin:"0 auto", fontFamily:C.corpo, color:C.creme};
+
+  return (
+    <div style={fundo}>
+      <style>{`@keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}`}</style>
+
+      {/* Voltar */}
+      <button type="button" onClick={onVoltar}
+        style={{background:"transparent",border:"none",color:C.muted,
+          fontSize:13,cursor:"pointer",fontFamily:C.corpo,marginBottom:32,
+          padding:0,letterSpacing:"0.05em"}}>
+        ← voltar
+      </button>
+
+      {/* Cabeçalho */}
+      <div style={{textAlign:"center", marginBottom:36, animation:"up 0.5s ease both"}}>
+        <p style={{fontSize:9, letterSpacing:"0.5em", textTransform:"uppercase",
+          color:C.ouro, fontWeight:700, margin:"0 0 14px"}}>Etapa 2 — Compartilhar</p>
+        <p style={{fontFamily:C.titulo, fontSize:24, fontStyle:"italic",
+          color:C.creme, margin:"0 0 12px", lineHeight:1.4}}>
+          Há alguém que precisava<br/>ouvir o que este artista sabia?
+        </p>
+        <p style={{fontSize:14, color:C.muted, lineHeight:1.7, margin:0}}>
+          Envie esta música. A pessoa vai descobrir a história<br/>
+          por trás dela — e uma pergunta que só ela pode responder.
+        </p>
+      </div>
+
+      {/* Música escolhida */}
+      <div style={{background:C.card, border:`1px solid ${C.ouro}22`,
+        borderRadius:14, padding:"18px 20px", marginBottom:20,
+        animation:"up 0.4s ease 0.1s both"}}>
+        <p style={{fontSize:10, letterSpacing:"0.4em", textTransform:"uppercase",
+          color:C.ouro, margin:"0 0 8px", fontWeight:700}}>Música escolhida</p>
+        <p style={{fontSize:17, fontStyle:"italic", color:C.creme, margin:0}}>{musica}</p>
+      </div>
+
+      {/* Opção de enviar outra música */}
+      {!linkGerado && (
+        <div style={{marginBottom:24, animation:"up 0.4s ease 0.15s both"}}>
+          <p style={{fontSize:12, color:C.muted, margin:"0 0 10px"}}>
+            Ou envie uma música diferente para esta pessoa:
+          </p>
+          <TA v={outraMusica} set={setOutraMusica}
+            enter={()=>{ if(outraMusica.trim()){ setMusicaFinal(outraMusica.trim()); gerarECompartilhar(outraMusica.trim()); }}}
+            ph="Artista — outra música (opcional)"/>
+        </div>
+      )}
+
+      {/* Botão gerar link / link gerado */}
+      {!linkGerado ? (
+        <div style={{animation:"up 0.4s ease 0.2s both"}}>
+          <button type="button" disabled={gerando}
+            onClick={()=>gerarECompartilhar(outraMusica.trim() || musica)}
+            style={{width:"100%", background:C.ouro, color:"#fff", border:"none",
+              borderRadius:14, padding:"20px 24px", fontSize:15,
+              letterSpacing:"0.15em", textTransform:"uppercase",
+              cursor:gerando?"wait":"pointer", fontFamily:C.corpo,
+              boxShadow:`0 4px 28px ${C.ouro}44`, transition:"all 0.3s", minHeight:56}}>
+            {gerando ? "Gerando link…" : "Gerar link de convite →"}
+          </button>
+        </div>
+      ) : (
+        <div style={{animation:"up 0.4s ease both"}}>
+          {/* Link gerado */}
+          <div style={{background:C.faint, border:`1px solid ${C.ouro}44`,
+            borderRadius:12, padding:"16px 18px", marginBottom:14}}>
+            <p style={{fontSize:10, letterSpacing:"0.4em", textTransform:"uppercase",
+              color:C.ouro, margin:"0 0 8px", fontWeight:700}}>Link pronto</p>
+            <p style={{fontSize:13, color:C.muted, wordBreak:"break-all",
+              margin:"0 0 12px", lineHeight:1.5}}>{linkGerado}</p>
+            <button type="button" onClick={copiar}
+              style={{background:copiado?C.verdeclaro:C.ouro, color:"#fff",
+                border:"none", borderRadius:10, padding:"10px 20px",
+                fontSize:13, letterSpacing:"0.1em", textTransform:"uppercase",
+                cursor:"pointer", fontFamily:C.corpo, transition:"all 0.25s"}}>
+              {copiado ? "Copiado ✓" : "Copiar link"}
+            </button>
+          </div>
+
+          {/* Canais de envio */}
+          <p style={{fontSize:12, color:C.muted, textAlign:"center",
+            margin:"0 0 12px", letterSpacing:"0.05em"}}>
+            Compartilhe via
+          </p>
+          <div style={{display:"flex", gap:10, justifyContent:"center",
+            flexWrap:"wrap", marginBottom:28}}>
+            {[
+              {label:"WhatsApp", url:`https://wa.me/?text=${encodeURIComponent(`"${musicaFinal}" — clique para descobrir o que este artista sabia: ${linkGerado}`)}`},
+              {label:"Instagram", url:linkGerado},
+              {label:"Email", url:`mailto:?subject=Uma música para você&body=${encodeURIComponent(`Ouvi "${musicaFinal}" e pensei em você.\n\nClique para descobrir o que este artista sabia:\n${linkGerado}`)}`},
+            ].map((c,i)=>(
+              <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
+                style={{background:C.faint, border:`1px solid ${C.border}`,
+                  color:C.creme, borderRadius:100, padding:"8px 18px",
+                  fontSize:13, textDecoration:"none", fontFamily:C.corpo}}>
+                {c.label}
+              </a>
+            ))}
+          </div>
+
+          {/* Continuar para arquipélago */}
+          <button type="button" onClick={onConcluir}
+            style={{width:"100%", background:"transparent",
+              border:`1px solid ${C.border}`, color:C.muted,
+              borderRadius:14, padding:"16px 24px", fontSize:13,
+              letterSpacing:"0.12em", textTransform:"uppercase",
+              cursor:"pointer", fontFamily:C.corpo, transition:"all 0.2s"}}>
+            Criar meu arquipélago emocional →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ETAPA 2 — TELA DE CHEGADA (quem recebe o convite)
+// Nova landing page completa
+// ═══════════════════════════════════════════════════════════════════════════════
 function TelaChegada({linkData, onEntrarJornada, onVoltar}) {
   const {musica, artista, quemCompartilhou} = linkData;
-  return (
-    <TelaArtista
-      musica={musica}
-      artista={artista}
-      quemCompartilhou={quemCompartilhou}
-      onEntrarJornada={onEntrarJornada}
-      onVoltar={onVoltar}
-    />
+  const [fase, setFase] = useState("boas_vindas"); // boas_vindas | musica | apresentacao
+
+  const fundo = {minHeight:"100vh", background:C.bg, fontFamily:C.corpo,
+    color:C.creme, overflowX:"hidden"};
+
+  // Fase 1 — Boas-vindas (antes de revelar a música)
+  if (fase === "boas_vindas") return (
+    <div style={{...fundo, display:"flex", alignItems:"center", justifyContent:"center"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap');
+        @keyframes up{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadein{from{opacity:0}to{opacity:1}}
+        @keyframes pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}
+      `}</style>
+      <div style={{maxWidth:520, padding:"48px 28px", textAlign:"center"}}>
+        {/* Logo */}
+        <div style={{marginBottom:36, animation:"fadein 1s ease both"}}>
+          <div style={{width:52, height:52, borderRadius:"50%",
+            background:`linear-gradient(135deg,#1A1A2E,#2A2A4E)`,
+            border:`2px solid ${C.ouro}88`, display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:22, margin:"0 auto 16px",
+            boxShadow:`0 0 24px ${C.ouro}22`, animation:"pulse 3s ease infinite"}}>
+            🎼
+          </div>
+          <p style={{fontFamily:"'Playfair Display',serif", fontSize:13,
+            letterSpacing:"0.35em", textTransform:"uppercase", color:C.ouro,
+            fontWeight:300, margin:0}}>ONDA</p>
+        </div>
+
+        {/* Mensagem */}
+        <div style={{animation:"up 0.7s ease 0.2s both"}}>
+          <p style={{fontFamily:"'Playfair Display',serif", fontSize:"clamp(22px,5vw,32px)",
+            fontStyle:"italic", color:C.creme, margin:"0 0 16px", lineHeight:1.4, fontWeight:400}}>
+            Bem-vindo ao ONDA.
+          </p>
+          <p style={{fontFamily:C.corpo, fontSize:18, color:C.creme,
+            margin:"0 0 12px", lineHeight:1.7, fontWeight:300}}>
+            {quemCompartilhou && quemCompartilhou !== "alguém"
+              ? <>{quemCompartilhou} pensou em você<br/>e enviou uma música.</>
+              : <>Alguém pensou em você<br/>e enviou uma música.</>
+            }
+          </p>
+          <p style={{fontFamily:C.corpo, fontSize:15, color:C.muted,
+            margin:"0 0 40px", lineHeight:1.7}}>
+            Clique para descobrir qual é — e o que ela<br/>pode revelar sobre quem a escolheu.
+          </p>
+        </div>
+
+        {/* Botão revelar */}
+        <div style={{animation:"up 0.5s ease 0.5s both"}}>
+          <button type="button" onClick={()=>setFase("musica")}
+            style={{background:C.ouro, color:"#fff", border:"none",
+              borderRadius:14, padding:"20px 40px", fontSize:16,
+              letterSpacing:"0.2em", textTransform:"uppercase",
+              cursor:"pointer", fontFamily:C.corpo,
+              boxShadow:`0 6px 32px ${C.ouro}44`, transition:"all 0.3s",
+              minHeight:60, minWidth:220}}>
+            Descobrir a música →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Fase 2 — Revela a música e mostra o artigo do Maestro
+  if (fase === "musica") return (
+    <div style={fundo}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap');
+        @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.08);opacity:1}}
+      `}</style>
+      <TelaArtista
+        musica={musica}
+        artista={artista}
+        quemCompartilhou={quemCompartilhou && quemCompartilhou !== "alguém" ? quemCompartilhou : null}
+        onEntrarJornada={()=>setFase("apresentacao")}
+        onVoltar={()=>setFase("boas_vindas")}
+      />
+    </div>
+  );
+
+  // Fase 3 — Apresentação do ONDA ao novo usuário
+  if (fase === "apresentacao") return (
+    <div style={{...fundo, overflowY:"auto"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital@0;1&family=Crimson+Pro:ital,wght@0,300;0,400;1,300;1,400&display=swap');
+        @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
+      <div style={{maxWidth:600, margin:"0 auto", padding:"52px 28px 80px"}}>
+
+        {/* Cabeçalho */}
+        <div style={{textAlign:"center", marginBottom:48, animation:"up 0.6s ease both"}}>
+          <div style={{width:48, height:48, borderRadius:"50%",
+            background:`linear-gradient(135deg,#1A1A2E,#2A2A4E)`,
+            border:`2px solid ${C.ouro}88`, display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:20, margin:"0 auto 16px"}}>🎼</div>
+          <p style={{fontFamily:"'Playfair Display',serif", fontSize:"clamp(24px,5vw,34px)",
+            fontStyle:"italic", color:C.creme, margin:"0 0 12px", lineHeight:1.35, fontWeight:400}}>
+            O que é o ONDA
+          </p>
+          <p style={{fontFamily:C.corpo, fontSize:16, color:C.muted,
+            margin:0, lineHeight:1.8}}>
+            Um ponto de encontro para quem ama música.
+          </p>
+        </div>
+
+        {/* Pilares */}
+        {[
+          {
+            titulo:"O Maestro",
+            texto:"Um crítico musical que pesquisa a história real de cada música antes de escrever. Ele busca em três fontes — autoria, declarações do artista, contexto histórico — e cita os jornalistas que consultou. O que o Maestro escreve não é uma ficha de Wikipedia. É a história de um momento humano que ficou preso numa canção.",
+          },
+          {
+            titulo:"Artigos sobre Música",
+            texto:"Para cada música que você traz, o ONDA gera um artigo original. Com fontes verificadas, jornalistas citados por nome, e links para aprofundar. Uma forma de honrar quem escreveu sobre música com seriedade — e de entender o que o artista sabia quando criou aquela obra.",
+          },
+          {
+            titulo:"A Constelação",
+            texto:"Cada música que você explora revela uma ilha emocional. Ao longo do tempo, essas ilhas formam um arquipélago — o mapa das emoções que a música já despertou em você. A Constelação é o padrão que emerge desse mapa. O Maestro lê esse padrão e diz o que ele revela.",
+          },
+          {
+            titulo:"Arquipélago Emocional Público",
+            texto:"Todas as músicas buscadas no ONDA vão para um arquivo coletivo — anônimo. Os nomes das pessoas nunca aparecem. Só as músicas, os artistas, as histórias, e as emoções que cada uma desperta. Um grande mapa das tendências emocionais do público, revelado pelas músicas que as traduzem.",
+          },
+        ].map((p, i) => (
+          <div key={i} style={{marginBottom:28,
+            borderLeft:`2px solid ${C.ouro}44`, paddingLeft:20,
+            animation:`up 0.5s ease ${0.1 + i*0.1}s both`}}>
+            <p style={{fontFamily:C.corpo, fontSize:11, letterSpacing:"0.4em",
+              textTransform:"uppercase", color:C.ouro, fontWeight:700,
+              margin:"0 0 8px"}}>{p.titulo}</p>
+            <p style={{fontFamily:C.corpo, fontSize:16, color:C.creme,
+              lineHeight:1.8, margin:0, opacity:0.9}}>{p.texto}</p>
+          </div>
+        ))}
+
+        {/* CTA */}
+        <div style={{marginTop:44, textAlign:"center", animation:"up 0.5s ease 0.6s both"}}>
+          <p style={{fontFamily:C.corpo, fontSize:16, color:C.muted,
+            marginBottom:24, lineHeight:1.7}}>
+            Quer começar sua própria jornada?
+          </p>
+          <button type="button" onClick={onEntrarJornada}
+            style={{background:C.ouro, color:"#fff", border:"none",
+              borderRadius:14, padding:"20px 40px", fontSize:15,
+              letterSpacing:"0.2em", textTransform:"uppercase",
+              cursor:"pointer", fontFamily:C.corpo,
+              boxShadow:`0 6px 32px ${C.ouro}44`,
+              transition:"all 0.3s", minHeight:58}}>
+            Entrar no ONDA →
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -3473,10 +3782,27 @@ export default function Onda() {
 
   // Nova tela de entrada — O Que o Artista Sabia (primeiro contato)
   if(tela==="artista_entrada") return (
-    <TelaArtistaEntrada onEntrar={()=>setTela("inicio")}/>
+    <TelaArtistaEntrada
+      onEntrar={()=>setTela("inicio")}
+      onCompartilhar={(musica, artista)=>{
+        setLinkData({musica, artista, quemCompartilhou: perfil?.nome||""});
+        setTela("compartilhar");
+      }}
+    />
   );
 
-  // Tela de chegada via link — "O Que o Artista Sabia"
+  // Etapa 2 — Tela de compartilhamento (remetente gera link)
+  if(tela==="compartilhar") return (
+    <TelaCompartilhar
+      musica={linkData?.musica||""}
+      artista={linkData?.artista||""}
+      nomeRemetente={perfil?.nome||""}
+      onConcluir={()=>setTela("inicio")}
+      onVoltar={()=>setTela("artista_entrada")}
+    />
+  );
+
+  // Tela de chegada via link — landing page para quem recebe convite
   if(tela==="artista") return (
     <TelaChegada
       linkData={linkData||{musica:"",artista:"",quemCompartilhou:""}}
