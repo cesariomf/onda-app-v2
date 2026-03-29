@@ -322,30 +322,43 @@ async function ai(prompt, sistema = "", tentativas = 3) {
 async function aiComBusca(prompt, sistema = "") {
   const body = {
     model:"claude-sonnet-4-20250514",
-    max_tokens:6000,
+    max_tokens:5000,
     tools:[{ type:"web_search_20250305", name:"web_search" }],
     messages:[{role:"user",content:prompt}]
   };
   if (sistema) body.system = sistema;
 
-  const r = await fetch("/api/claude", {
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(body),
-  });
-  if (!r.ok) {
-    const txt = await r.text().catch(()=>"");
-    throw new Error(`API ${r.status}: ${txt.slice(0,100)}`);
+  // Timeout de 55s — abaixo do limite Vercel de 60s
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 55000);
+
+  try {
+    const r = await fetch("/api/claude", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+
+    if (!r.ok) {
+      const txt = await r.text().catch(()=>"");
+      throw new Error(`API ${r.status}: ${txt.slice(0,200)}`);
+    }
+    const d = await r.json();
+
+    // Extrai apenas os blocos de texto — a história escrita pelo Maestro
+    const textos = (d.content || [])
+      .filter(c => c.type === "text")
+      .map(c => c.text || "")
+      .join("");
+
+    return textos || (d.content || []).map(c => c.text || "").join("");
+  } catch(e) {
+    clearTimeout(timer);
+    if (e.name === "AbortError") throw new Error("O Maestro demorou demais pesquisando. Tente de novo.");
+    throw e;
   }
-  const d = await r.json();
-
-  // Extrai apenas os blocos de texto — a história escrita pelo Maestro
-  const textos = (d.content || [])
-    .filter(c => c.type === "text")
-    .map(c => c.text || "")
-    .join("");
-
-  return textos || (d.content || []).map(c => c.text || "").join("");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1892,12 +1905,59 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
   const fundo = {minHeight:"100vh", background:C.bg, padding:"24px 20px 48px", maxWidth:680, margin:"0 auto"};
 
   if (etapa === "carregando") return (
-    <div style={{...fundo, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16}}>
-      <div style={{fontSize:32, animation:"pulse 2s ease infinite"}}>🎼</div>
-      <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic", textAlign:"center", lineHeight:1.7}}>
+    <div style={{...fundo, display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", gap:16, minHeight:"100vh"}}>
+      <style>{`@keyframes pulse{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.1)}}`}</style>
+      <div style={{fontSize:36, animation:"pulse 2s ease infinite"}}>🎼</div>
+      <p style={{fontFamily:C.corpo, color:C.muted, fontStyle:"italic",
+        textAlign:"center", lineHeight:1.8, margin:0}}>
         O Maestro está pesquisando…<br/>
-        <span style={{fontSize:13, opacity:0.6}}>autoria · declarações do artista · contexto histórico</span>
+        <span style={{fontSize:12, opacity:0.55}}>
+          autoria · declarações do artista · contexto histórico
+        </span>
       </p>
+      <p style={{fontFamily:C.corpo, fontSize:12, color:C.muted,
+        opacity:0.35, margin:0, textAlign:"center"}}>
+        Este processo leva cerca de 20–40 segundos
+      </p>
+    </div>
+  );
+
+  // Erro — mostra mensagem clara com botão de tentar de novo
+  if (etapa === "historia" && erro && !historia) return (
+    <div style={{...fundo, display:"flex", flexDirection:"column", alignItems:"center",
+      justifyContent:"center", gap:20, minHeight:"100vh", textAlign:"center"}}>
+      <div style={{fontSize:32}}>⚠️</div>
+      <p style={{fontFamily:C.corpo, color:C.muted, fontSize:15, lineHeight:1.7, margin:0}}>
+        {erro}
+      </p>
+      <button type="button"
+        onClick={()=>{ setErro(""); setEtapa("carregando");
+          aiComBusca(Q.artista(musica,nomeArtista),MAESTRO_SYS(null,1,[]))
+            .then(raw=>{
+              const limpar=(t)=>t.replace(/━+.*?━+/g,"").replace(/\*\*[^*]+\*\*/g,"")
+                .replace(/^HIST[OÓ]RIA:\s*/im,"").replace(/^PERGUNTA:\s*/im,"")
+                .replace(/^FONTES:[\s\S]*$/im,"").replace(/\n{3,}/g,"\n\n").trim();
+              const hist=raw.match(/HISTORIA:\s*([\s\S]*?)(?=PERGUNTA:|$)/i)?.[1]?.trim()||raw;
+              const perg=raw.match(/PERGUNTA:\s*([\s\S]*?)(?=FONTES:|$)/i)?.[1]?.trim()||"Isso ressoa com algo que você está vivendo?";
+              const fontesRaw=raw.match(/FONTES:\s*([\s\S]*?)$/i)?.[1]?.trim()||"";
+              setHistoria(limpar(hist));
+              setPergunta(limpar(perg));
+              setFontes(fontesRaw.split("\n").map(l=>l.replace(/^[-•*]\s*/,"").trim()).filter(l=>l.length>3).slice(0,6));
+              setEtapa("historia");
+            })
+            .catch(e=>{ setErro(e.message||"Erro ao carregar. Tente de novo."); setEtapa("historia"); });
+        }}
+        style={{background:C.ouro, color:"#fff", border:"none", borderRadius:12,
+          padding:"14px 28px", fontSize:14, letterSpacing:"0.1em",
+          textTransform:"uppercase", cursor:"pointer", fontFamily:C.corpo}}>
+        Tentar de novo
+      </button>
+      <button type="button" onClick={onVoltar}
+        style={{background:"transparent", border:"none", color:C.muted,
+          fontSize:13, cursor:"pointer", fontFamily:C.corpo}}>
+        ← voltar
+      </button>
     </div>
   );
 
