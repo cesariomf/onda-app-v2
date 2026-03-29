@@ -1813,20 +1813,6 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
   const [erro, setErro] = useState("");
   const [musicaSugerida, setMusicaSugerida] = useState(null);
 
-  // Se clicou em "Ver história no ONDA" numa sugestão — abre nova instância
-  if (musicaSugerida) {
-    return (
-      <TelaArtista
-        musica={musicaSugerida}
-        artista={musicaSugerida.split(" — ")[0] || musicaSugerida}
-        quemCompartilhou={null}
-        onEntrarJornada={onEntrarJornada}
-        onCompartilhar={onCompartilhar}
-        onVoltar={()=>setMusicaSugerida(null)}
-      />
-    );
-  }
-
   const nomeArtista = artista || musica.split(" - ")[0] || "este artista";
   const nomeMusica = musica.includes(" - ") ? musica.split(" - ").slice(1).join(" - ") : musica;
 
@@ -1852,13 +1838,13 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
 
         // Limpa artefatos de formatação que o modelo pode deixar escapar
         const limpar = (txt) => txt
-          .replace(/━+.*?━+/g, "")           // remove ━━━ TITULO ━━━
-          .replace(/\*\*[^*]+\*\*/g, "")      // remove **NEGRITO**
-          .replace(/^HIST[OÓ]RIA:\s*/im, "")  // remove "HISTÓRIA:" residual
-          .replace(/^PERGUNTA:\s*/im, "")      // remove "PERGUNTA:" residual
-          .replace(/^FONTES:[\s\S]*$/im, "")  // remove bloco FONTES residual
-          .replace(/^ILHA[_\s].*$/im, "")     // remove ILHA_SESSAO residual
-          .replace(/\n{3,}/g, "\n\n")         // normaliza espaços em branco
+          .replace(/━+.*?━+/g, "")
+          .replace(/\*\*[^*]+\*\*/g, "")
+          .replace(/^HIST[OÓ]RIA:\s*/im, "")
+          .replace(/^PERGUNTA:\s*/im, "")
+          .replace(/^FONTES:[\s\S]*$/im, "")
+          .replace(/^ILHA[_\s].*$/im, "")
+          .replace(/\n{3,}/g, "\n\n")
           .trim();
 
         setHistoria(limpar(hist));
@@ -1871,6 +1857,21 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
       }
     })();
   }, []);
+
+  // Se clicou em "Ver história no ONDA" numa sugestão — abre nova instância
+  // IMPORTANTE: este return condicional vem DEPOIS de todos os hooks
+  if (musicaSugerida) {
+    return (
+      <TelaArtista
+        musica={musicaSugerida}
+        artista={musicaSugerida.split(" — ")[0] || musicaSugerida}
+        quemCompartilhou={null}
+        onEntrarJornada={onEntrarJornada}
+        onCompartilhar={onCompartilhar}
+        onVoltar={()=>setMusicaSugerida(null)}
+      />
+    );
+  }
 
   const enviarResposta = async () => {
     if (!resposta.trim()) return;
