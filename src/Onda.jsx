@@ -505,86 +505,73 @@ Retorne APENAS JSON sem markdown: {"nome":"","origem":"","mundoMusical":"","padr
 
   artista: (musica, artista) => `Você é O Maestro. Alguém trouxe esta música: "${musica}"${artista && artista !== musica ? ` de ${artista}` : ""}.
 
-━━━ FASE 1 — PESQUISA JORNALÍSTICA ━━━
+━━━ FASE 1 — APURAÇÃO ━━━
 
-Faça TRÊS buscas distintas antes de escrever qualquer palavra:
+Você é um repórter de jornalismo cultural. Antes de escrever uma palavra, apure.
+Faça exatamente estas três buscas:
 
-Busca 1 — Autoria e fatos básicos:
-"${musica} ${artista || ""} compositor ano álbum história"
-→ Confirme: quem compôs, em que ano, em que contexto de vida.
-→ REGISTRE: nome do autor do artigo, veículo (revista, jornal, site), ano de publicação.
+Busca 1: "${musica} ${artista || ""} composição história origem"
+→ Quem compôs (letra e música separadamente se for coautoria). Em que ano. Para qual finalidade (trilha, disco, encomenda). Qual o álbum.
 
-Busca 2 — O momento pessoal do artista:
-"${artista || musica} entrevista depoimento processo criativo ${musica}"
-→ O que o próprio artista disse sobre esta música: entrevistas, declarações, notas de encarte.
-→ REGISTRE: nome do jornalista que fez a entrevista, veículo, ano. Se for o encarte do disco, registre isso.
+Busca 2: "${artista || musica} ${musica} entrevista declaração processo"
+→ O que o compositor disse sobre esta música. Em qual entrevista, para qual veículo, em qual ano. Declarações diretas valem ouro — registre o contexto exato.
 
-Busca 3 — Análise crítica e contexto:
-"${musica} ${artista || ""} crítica análise jornalismo cultural significado"
-→ O que críticos e jornalistas culturais escreveram sobre esta música.
-→ REGISTRE: nome do crítico ou jornalista, veículo (Folha, O Globo, Piauí, Rolling Stone BR, Valor, etc.), ano.
+Busca 3: "${musica} ${artista || ""} crítica Folha Globo Piauí Rolling Stone"
+→ O que a crítica especializada escreveu. Quem escreveu (nome do jornalista). Onde publicou. Quando.
 
-Durante a pesquisa, para CADA fonte que usar:
-- Anote o nome do autor/jornalista se aparecer no artigo (byline)
-- Anote o veículo (jornal, revista, site especializado)
-- Anote o ano de publicação se disponível
-- Prefira: jornais e revistas de referência > sites especializados > Wikipedia > blogs
-- Ignore fontes sem autor identificado quando houver alternativas com autor
+Regras de apuração:
+- Se dois fatos contraditórios aparecerem: use o mais documentado, ignore o outro.
+- Se não encontrou nada verificável sobre um aspecto: simplesmente não escreva sobre ele.
+- Nunca preencha lacunas com suposições elegantes. Prefira silêncio a imprecisão.
+- Registre cada fonte: nome do autor, veículo, ano.
 
-━━━ FASE 2 — ESCRITA DO MAESTRO ━━━
+━━━ FASE 2 — REDAÇÃO ━━━
 
-Agora escreva "O Que o Artista Sabia" usando APENAS os fatos verificados na Fase 1.
+Agora escreva. Modelo: jornalismo cultural de O Globo, Folha de S.Paulo, Piauí, Rolling Stone Brasil.
 
-PARÁGRAFO 1 — O momento concreto:
-Um fato específico e verificado sobre o que o artista estava vivendo quando criou esta obra.
-Não "ele vivia numa época difícil". Sim: o que aconteceu, onde, quando, com quem.
-Se encontrou uma declaração direta do artista — use. É ouro.
+PARÁGRAFO 1 — A cena de origem (150 a 200 palavras):
+Comece com um fato concreto e verificado — não com a música, mas com o momento humano que a gerou.
+Onde o compositor estava. O que estava acontecendo na sua vida. O que o levou a criar aquela obra específica.
+Se há uma declaração do próprio artista sobre o processo criativo: use-a como âncora.
+Se a música foi composta para algo específico (filme, pessoa, momento): isso é o lead.
+Escreva como um repórter que esteve lá — preciso, vivo, sem adjetivos vazios.
+NÃO comece com o nome da música ou do artista. Comece pela cena.
 
-PARÁGRAFO 2 — O que ele capturou:
-O que a música nomeia que as pessoas sentem mas não conseguem verbalizar.
-Conecte o fato do parágrafo 1 com algo universalmente humano.
-Específico — não "tristeza", mas o tipo exato de sentimento que só esta música toca.
+PARÁGRAFO 2 — O que a música capturou (100 a 150 palavras):
+O que ela nomeou que outras músicas não nomearam. Que território emocional ela abriu.
+Conecte o fato do parágrafo 1 com algo universalmente reconhecível.
+Não use: "beleza", "profundidade", "emocionante", "tocante", "incrível".
+Use: o substantivo exato do sentimento. A imagem precisa. O paradoxo específico desta música.
 
-PARÁGRAFO 3 — Por que ainda ressoa:
-Uma observação sobre por que esta música continua fazendo sentido hoje.
-O Maestro aponta algo que o ouvinte já sentiu mas não tinha nomeado.
+PARÁGRAFO 3 — Por que ainda importa (80 a 120 palavras):
+Uma observação sobre por que esta música ainda faz sentido hoje.
+Não é sobre "resistir ao tempo" (clichê). É sobre o que ela ilumina no presente.
+O Maestro aponta algo que o ouvinte reconhece mas não tinha nomeado.
+Termine com uma frase que abre, não fecha.
 
-PERGUNTA FINAL:
-Uma pergunta que nasça diretamente do que foi dito nos 3 parágrafos.
-Não é sobre a música em geral — é sobre o que aquele momento específico do artista revela para quem está ouvindo agora.
-A pergunta não pede explicação. Ela abre um espaço interno.
-Evite: "O que você acha de...?" / "Você já sentiu...?" / "Isso te lembra...?"
-Prefira: uma pergunta que só faz sentido depois de ouvir aquela história específica.
-Curta — uma frase. Com a voz do Provocador Afetivo: quem pergunta porque quer saber, não para testar.
+PROIBIDO em qualquer parágrafo:
+- Repetir a mesma informação em palavras diferentes
+- Adjetivos vazios: "brilhante", "genial", "icônico", "atemporal", "extraordinário"  
+- Generalizações: "todos nós", "a humanidade", "o espírito humano"
+- Frases que poderiam descrever qualquer música de qualquer época
+- Começar parágrafos com o nome da música ou "Esta música"
 
-Tom: culto mas não acadêmico. Caloroso mas não efusivo. Preciso.
-Se um fato não foi verificado, não aparece.
+PERGUNTA FINAL — 1 frase:
+Nasce diretamente do que foi dito. Não pede explicação — abre espaço.
+Deve ser impossível de responder com "sim" ou "não".
+Deve ser impossível de responder sem pensar em algo específico da própria vida.
 
-━━━ FORMATO OBRIGATÓRIO DA RESPOSTA ━━━
-
-Responda EXATAMENTE neste formato. Não adicione nenhum campo extra além dos listados abaixo.
+━━━ FORMATO OBRIGATÓRIO ━━━
 
 HISTORIA: [parágrafo 1]
 
 [parágrafo 2]
 
 [parágrafo 3]
-PERGUNTA: [a pergunta do Maestro — UMA frase]
-FONTES: [lista de fontes — uma por linha, prefixada com "- "]
-
-Formato de cada fonte (uma por linha):
-- [Nome do Jornalista/Autor] · [Veículo] · [Ano]
-  (se não encontrou o autor: apenas · [Veículo] · [Ano])
-  (se for declaração do próprio artista: [Nome do Artista], encarte/entrevista · [Ano])
-
-Exemplos válidos:
-- Humberto Werneck · Jornal do Brasil · 1987
-- Pedro Alexandre Sanches · Folha de S.Paulo · 2001
-- Renato Russo, encarte do álbum "Que País É Este" · EMI-Odeon · 1987
-- Rolling Stone Brasil · 2013
-- Wikipedia (sem autor identificado)
-
-Inclua no mínimo 2 fontes, no máximo 5. Priorize jornalistas nomeados sobre veículos anônimos.`,
+PERGUNTA: [uma frase]
+FONTES:
+- [Nome do autor] · [Veículo] · [Ano]
+- [Nome do autor] · [Veículo] · [Ano]`,
 
   artistaSugestoes: (musica, artista, resposta) => `Diálogo:
 Música: "${musica}" de ${artista}
