@@ -727,14 +727,30 @@ const loadDuo = async (codigo) => {
 // Gera código de 6 caracteres alfanumérico
 const gerarCodigo = () => Math.random().toString(36).slice(2,8).toUpperCase();
 
-// Storage para links compartilhados — "O Que o Artista Sabia"
+// Codifica dados da música diretamente na URL (base64)
+// Não depende de storage externo — funciona em qualquer browser
+const encodeLinkData = (dados) => {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(dados)))); } catch { return null; }
+};
+const decodeLinkData = (encoded) => {
+  try { return JSON.parse(decodeURIComponent(escape(atob(encoded)))); } catch { return null; }
+};
+
+// Gera URL com dados embutidos — não precisa de storage
+const gerarLinkUrl = (dados) => {
+  const encoded = encodeLinkData(dados);
+  if (!encoded) return null;
+  return `${window.location.origin}${window.location.pathname}?onda=${encoded}`;
+};
+
+// Mantido para compatibilidade com links antigos (storage compartilhado)
 const LINK_PREFIX = "onda_link_";
 const saveLink = async (codigo, dados) => {
-  try { await window.storage.set(`${LINK_PREFIX}${codigo}`, JSON.stringify(dados), true); } catch {}
+  try { await window.storage?.set(`${LINK_PREFIX}${codigo}`, JSON.stringify(dados), true); } catch {}
 };
 const loadLink = async (codigo) => {
   try {
-    const r = await window.storage.get(`${LINK_PREFIX}${codigo}`, true);
+    const r = await window.storage?.get(`${LINK_PREFIX}${codigo}`, true);
     return r ? JSON.parse(r.value) : null;
   } catch { return null; }
 };
@@ -2435,22 +2451,26 @@ function TelaCompartilhar({musica, artista, nomeRemetente, onConcluir, onVoltar}
   const gerarECompartilhar = async (musicaParaEnviar) => {
     setGerando(true);
     try {
-      const codigo = gerarCodigo();
-      await saveLink(codigo, {
-        musica: musicaParaEnviar || musica,
-        artista: artista || (musicaParaEnviar || musica).split(" — ")[0],
+      const mFinal = musicaParaEnviar || musica;
+      const dados = {
+        musica: mFinal,
+        artista: artista || mFinal.split(" — ")[0],
         quemCompartilhou: nomeRemetente || "alguém",
-      });
-      const url = `${window.location.origin}${window.location.pathname}?link=${codigo}`;
+      };
+      setMusicaFinal(mFinal);
+      const url = gerarLinkUrl(dados);
+      if (!url) throw new Error("Erro ao gerar link");
       setLinkGerado(url);
       if (navigator.share) {
         await navigator.share({
-          title:"ONDA — Alguém pensou em você",
-          text:`"${musicaParaEnviar || musica}" — clique para descobrir o que este artista sabia.`,
+          title: `ONDA — "${mFinal}"`,
+          text: `"${mFinal}" — clique para descobrir o que este artista sabia.`,
           url,
         }).catch(()=>{});
       }
-    } catch {}
+    } catch(e) {
+      console.error(e);
+    }
     setGerando(false);
   };
 
@@ -2549,9 +2569,9 @@ function TelaCompartilhar({musica, artista, nomeRemetente, onConcluir, onVoltar}
           <div style={{display:"flex", gap:10, justifyContent:"center",
             flexWrap:"wrap", marginBottom:28}}>
             {[
-              {label:"WhatsApp", url:`https://wa.me/?text=${encodeURIComponent(`"${musicaFinal}" — clique para descobrir o que este artista sabia: ${linkGerado}`)}`},
+              {label:"WhatsApp", url:`https://wa.me/?text=${encodeURIComponent(`Ouvi "${musicaFinal}" e lembrei de você. Clique para descobrir o que este artista sabia: ${linkGerado}`)}`},
               {label:"Instagram", url:linkGerado},
-              {label:"Email", url:`mailto:?subject=Uma música para você&body=${encodeURIComponent(`Ouvi "${musicaFinal}" e pensei em você.\n\nClique para descobrir o que este artista sabia:\n${linkGerado}`)}`},
+              {label:"Email", url:`mailto:?subject=${encodeURIComponent(`"${musicaFinal}" — uma música para você`)}&body=${encodeURIComponent(`Ouvi "${musicaFinal}" e pensei em você.\n\nClique para descobrir o que este artista sabia — e por que essa música ainda importa:\n\n${linkGerado}`)}`},
             ].map((c,i)=>(
               <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
                 style={{background:C.faint, border:`1px solid ${C.border}`,
@@ -3637,8 +3657,20 @@ export default function Onda() {
 
   useEffect(()=>{
     (async()=>{
-      // Verifica se chegou via link compartilhado (?link=CODIGO)
       const params = new URLSearchParams(window.location.search);
+
+      // Novo formato: ?onda=BASE64 (dados embutidos na URL)
+      const ondaParam = params.get("onda");
+      if (ondaParam) {
+        const dados = decodeLinkData(ondaParam);
+        if (dados?.musica) {
+          setLinkData(dados);
+          setTela("artista");
+          return;
+        }
+      }
+
+      // Legado: ?link=CODIGO (storage compartilhado)
       const linkCodigo = params.get("link");
       if (linkCodigo) {
         const dados = await loadLink(linkCodigo);
@@ -4264,17 +4296,16 @@ export default function Onda() {
                 ch="Nova jornada →" cor={C.ouro}
                 sx={{animation:"shimmer 2.5s ease infinite"}}/>
               <Btn outline fn={async()=>{
-                // Gera link compartilhável com a música atual
-                const codigo = gerarCodigo();
-                await saveLink(codigo, {
+                const dados = {
                   musica: musicaPedida,
                   artista: musicas[0]?.titulo?.split(" — ")[0] || musicaPedida,
                   quemCompartilhou: perfil?.nome || "alguém",
-                });
-                const url = `${window.location.origin}${window.location.pathname}?link=${codigo}`;
+                };
+                const url = gerarLinkUrl(dados);
+                if (!url) return;
                 if (navigator.share) {
                   navigator.share({
-                    title: "ONDA — O Que o Artista Sabia",
+                    title: `ONDA — "${musicaPedida}"`,
                     text: `Ouvi "${musicaPedida}" e descobri algo sobre ela que me surpreendeu.`,
                     url,
                   }).catch(()=>{});
