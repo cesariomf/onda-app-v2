@@ -450,17 +450,19 @@ ANTI-PADRÕES: Nunca Chico Buarque para melancolia genérica, Caetano como MPB p
 // ═══════════════════════════════════════════════════════════════════════════════
 const Q = {
 
-  abertura: (musica, perfil, ilhas) => {
+  abertura: (musica, perfil, ilhas, jornadasAnteriores=null) => {
     const agora = new Date();
     const dias = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
     const hora = agora.getHours();
     const periodo = hora < 12 ? "manhã" : hora < 18 ? "tarde" : "noite";
     const diaSemana = dias[agora.getDay()];
     const contextoTempo = `${diaSemana} à ${periodo}`;
+    const numJornada = jornadasAnteriores ? jornadasAnteriores.split("\n").length + 1 : 1;
     return `O usuário quer ouvir: "${musica}"
 Momento: ${contextoTempo}
 ${perfil ? `Você já conhece: origem=${perfil.origem}, musical=${perfil.mundoMusical}` : "Primeiro encontro."}
-${ilhas?.length ? `Ilhas já visitadas: ${ilhas.map(i=>i.emocao).join(", ")}` : ""}`
+${ilhas?.length ? `Ilhas já visitadas: ${ilhas.map(i=>i.emocao).join(", ")}` : ""}
+${jornadasAnteriores ? `\nEsta é a Jornada ${numJornada}. Jornadas anteriores:\n${jornadasAnteriores}\n\nVocê já tem um fio de continuidade com esta pessoa. Use-o com leveza — uma referência discreta ao que já emergiu antes pode ser mais precisa do que começar do zero. Mas não force: a nova música é o ponto de partida.` : "Esta é a primeira jornada."}
 
 Como O Maestro Provocador Afetivo, faça UMA pergunta sobre essa música neste momento.
 Estrutura da voz: observação precisa + provocação leve + cauda que abre ("me conta mais", "o que foi exatamente", "tô curioso").
@@ -492,9 +494,10 @@ Camada 4 — o que a música vai fazer agora.
 2. PERGUNTA final: o que ela precisa que a música faça agora? O Maestro já intuiu a resposta — mas sabe que a pessoa precisa chegar lá. Pergunta como quem tem um palpite e quer confirmar.
 Formato:\nREFLEXÃO: [texto]\nPERGUNTA: [texto]`,
 
-  musicas: (musicaPedida, hist, perfil, circulo) => `Música pedida: "${musicaPedida}"
+  musicas: (musicaPedida, hist, perfil, circulo, jornadasAnteriores=null) => `Música pedida: "${musicaPedida}"
 Diálogo:\n${hist}
 Perfil: origem=${perfil?.origem||"?"}, musical=${perfil?.mundoMusical||"?"}, círculo=${circulo}
+${jornadasAnteriores ? `\nJornadas anteriores:\n${jornadasAnteriores}\nEvite repetir territórios emocionais já muito visitados, a não ser que a conversa puxe claramente para lá.` : ""}
 
 A música pedida pode ser de qualquer país. As 3 complementares devem ser BRASILEIRAS.
 REGRA DE LETRAS: Só cite versos com CERTEZA ABSOLUTA. Se dúvida → "—". NUNCA misture letras de músicas diferentes.
@@ -1626,7 +1629,7 @@ function CardDesafio({desafio, onAceitar, aceito}) {
   );
 }
 
-function Dialogo({perfil,nivel,ilhas,onResultado,onPerfil,retomada=null,desafioAtivo=null}) {
+function Dialogo({perfil,nivel,ilhas,onResultado,onPerfil,retomada=null,desafioAtivo=null,sessoesAnteriores=[]}) {
   const [passo,setPasso]=useState(retomada?"retomando":"m0");
   const [camada,setCamada]=useState(0);
   const [entrada,setEntrada]=useState("");
@@ -1636,6 +1639,13 @@ function Dialogo({perfil,nivel,ilhas,onResultado,onPerfil,retomada=null,desafioA
   const [musicaPedida,setMusica]=useState(retomada?.musica||"");
   const [erro,setErro]=useState("");
   const hist=useRef(retomada?[`Sessão anterior sobre "${retomada.musica}". Ilha descoberta: ${retomada.ilha}.`]:[]);
+
+  const resumoJornadasAnteriores = sessoesAnteriores.length > 0
+    ? sessoesAnteriores.slice(-4).map((s2, i) => {
+        const num = sessoesAnteriores.length - sessoesAnteriores.slice(-4).length + i + 1;
+        return `Jornada ${num}: "${s2.musica}" → ilha ${s2.emocao||s2.ilha}${s2.hist ? ` · Trecho: ${s2.hist.slice(0,120)}…` : ""}`;
+      }).join("\n")
+    : null;
 
   const log=(q,t)=>hist.current.push(`${q}: ${t}`);
   const h=()=>hist.current.join("\n");
@@ -1670,7 +1680,7 @@ function Dialogo({perfil,nivel,ilhas,onResultado,onPerfil,retomada=null,desafioA
     // Se tem desafio ativo, usa prompt específico que considera o contexto do desafio
     const promptAbertura = desafioAtivo
       ? Q.desafio(desafioAtivo, mus, perfil)
-      : Q.abertura(mus, perfil, ilhas);
+      : Q.abertura(mus, perfil, ilhas, resumoJornadasAnteriores);
     try {
       const raw=await ai(promptAbertura, S());
       log("Maestro [C1]",raw.trim());
@@ -1700,7 +1710,7 @@ function Dialogo({perfil,nivel,ilhas,onResultado,onPerfil,retomada=null,desafioA
         while(!res&&tentativas<2){
           tentativas++;
           try {
-            const raw=await ai(Q.musicas(musicaPedida,h(),perfil,nivel),S());
+            const raw=await ai(Q.musicas(musicaPedida,h(),perfil,nivel,resumoJornadasAnteriores),S());
             res=parseMusicas(raw);
           } catch(apiErr) {
             console.error("API error tentativa",tentativas,apiErr);
@@ -3826,6 +3836,7 @@ export default function Onda() {
       emocao: ilha?.emocao||"",
       ilhaCor: cor,
       data: new Date().toLocaleDateString("pt-BR"),
+      hist: hist,
     };
     const novasSessoes = [...sessoes, novaSessao];
     setSessoes(novasSessoes);
@@ -4237,6 +4248,7 @@ export default function Onda() {
                 <Dialogo
                   perfil={perfil} nivel={nivel} ilhas={ilhasVisitadas}
                   onResultado={onResultado} onPerfil={onPerfil}
+                  sessoesAnteriores={sessoes}
                   retomada={{
                     pergunta:perguntaPendente,
                     musica:ultimaSessao?.musica||"",
@@ -4255,6 +4267,7 @@ export default function Onda() {
                   <Dialogo
                     perfil={perfil} nivel={nivel} ilhas={ilhasVisitadas}
                     onResultado={onResultado} onPerfil={onPerfil}
+                    sessoesAnteriores={sessoes}
                     desafioAtivo={desafio}
                   />
                 );
