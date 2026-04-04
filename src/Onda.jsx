@@ -2247,9 +2247,17 @@ function TelaArtista({musica, artista, quemCompartilhou, onEntrarJornada, onVolt
         </div>
       )}
 
-      {/* Rodapé discreto */}
-      <div style={{marginTop:40, textAlign:"center"}}>
-        <p style={{fontFamily:C.corpo, fontSize:12, color:C.muted, opacity:0.5}}>
+      {/* Rodapé — sempre visível, com saída para o ONDA */}
+      <div style={{marginTop:40, textAlign:"center", display:"flex", flexDirection:"column", alignItems:"center", gap:16}}>
+        {onVoltar && (
+          <button type="button" onClick={onVoltar}
+            style={{background:"transparent", border:"none", cursor:"pointer",
+              color:C.muted, fontSize:12, letterSpacing:"0.2em",
+              textTransform:"uppercase", fontFamily:C.corpo, padding:0}}>
+            ← Voltar ao ONDA
+          </button>
+        )}
+        <p style={{fontFamily:C.corpo, fontSize:12, color:C.muted, opacity:0.5, margin:0}}>
           ONDA — música como espelho da alma
         </p>
       </div>
