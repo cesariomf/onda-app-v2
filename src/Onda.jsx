@@ -388,7 +388,7 @@ Pense num amigo que é mais culto que você, mais engraçado que você, e que me
 CERTO — exemplos de voz autêntica:
 "Ah. Então é essa música agora. Me conta por quê — estou curioso de verdade."
 "Interessante. Você disse uma coisa mas eu ouvi outra. Qual das duas é mais verdadeira?"
-"Essa música numa segunda de manhã diz muita coisa. O quê, exatamente?"
+"Essa música num sábado de tarde diz muita coisa. O quê, exatamente? (use o dia/hora real recebido no prompt)"
 "Continue. Tem mais aí — e eu quero ouvir."
 "Hm. Isso é mais complicado do que parece, não é? Tudo bem. A gente tem tempo."
 "A música brasileira tem um nome exato pra isso. Quer saber qual é?"
@@ -450,16 +450,25 @@ ANTI-PADRÕES: Nunca Chico Buarque para melancolia genérica, Caetano como MPB p
 // ═══════════════════════════════════════════════════════════════════════════════
 const Q = {
 
-  abertura: (musica, perfil, ilhas) => `O usuário quer ouvir: "${musica}"
+  abertura: (musica, perfil, ilhas) => {
+    const agora = new Date();
+    const dias = ["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
+    const hora = agora.getHours();
+    const periodo = hora < 12 ? "manhã" : hora < 18 ? "tarde" : "noite";
+    const diaSemana = dias[agora.getDay()];
+    const contextoTempo = `${diaSemana} à ${periodo}`;
+    return `O usuário quer ouvir: "${musica}"
+Momento: ${contextoTempo}
 ${perfil ? `Você já conhece: origem=${perfil.origem}, musical=${perfil.mundoMusical}` : "Primeiro encontro."}
-${ilhas?.length ? `Ilhas já visitadas: ${ilhas.map(i=>i.emocao).join(", ")}` : ""}
+${ilhas?.length ? `Ilhas já visitadas: ${ilhas.map(i=>i.emocao).join(", ")}` : ""}`
 
 Como O Maestro Provocador Afetivo, faça UMA pergunta sobre essa música neste momento.
 Estrutura da voz: observação precisa + provocação leve + cauda que abre ("me conta mais", "o que foi exatamente", "tô curioso").
+Use o momento real (${contextoTempo}) de forma natural se fizer sentido — mas só se acrescentar algo, nunca de forma forçada.
 A provocação nunca testa — convida. A pessoa deve sentir que o Maestro quer saber a resposta de verdade.
 A pergunta parte sempre da MÚSICA — nunca da vida privada como ponto de entrada.
 Pode ter humor, leveza, ironia cálida. Deve ser irresistível de responder.
-Retorne APENAS a pergunta, sem preâmbulo.`,
+Retorne APENAS a pergunta, sem preâmbulo.`; },
 
   c2: (hist) => `Diálogo:\n${hist}
 
