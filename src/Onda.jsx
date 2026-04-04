@@ -809,6 +809,50 @@ const C = {
   corpo:"'Crimson Pro', Georgia, serif",
 };
 const COR_C = {1:C.dourado, 2:C.roxo, 3:C.azul, 4:C.verdeclaro};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INDICADOR DE PROGRESSO — 5 Jornadas
+// ═══════════════════════════════════════════════════════════════════════════════
+function IndicadorJornada({ sessoes = [] }) {
+  const total = 5;
+  const featasNoCiclo = sessoes.length % total;
+  const cicloAtual = Math.floor(sessoes.length / total);
+  const isCicloCompleto = featasNoCiclo === 0 && sessoes.length > 0;
+  if (sessoes.length === 0) return null;
+  return (
+    <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10, marginBottom:28 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        {Array(total).fill(null).map((_, i) => {
+          const completa = i < (isCicloCompleto ? total : featasNoCiclo);
+          const eAtual = !isCicloCompleto && i === featasNoCiclo - 1;
+          return (
+            <div key={i} style={{
+              width: eAtual ? 14 : 10, height: eAtual ? 14 : 10,
+              borderRadius:"50%",
+              background: completa ? C.ouro : "transparent",
+              border: completa ? `1px solid ${C.ouro}` : `1px solid ${C.border}`,
+              transition:"all 0.4s ease",
+              boxShadow: eAtual ? `0 0 8px ${C.ouro}66` : "none",
+            }}/>
+          );
+        })}
+      </div>
+      <p style={{ fontSize:11, letterSpacing:"0.18em", textTransform:"uppercase", color:C.muted, fontFamily:C.corpo, margin:0 }}>
+        {isCicloCompleto
+          ? `Ciclo ${cicloAtual} completo · Constelação revelada`
+          : featasNoCiclo === total - 1
+            ? `Jornada ${featasNoCiclo} de ${total} · Última antes da constelação`
+            : `Jornada ${featasNoCiclo} de ${total}`
+        }
+      </p>
+      {featasNoCiclo === total - 1 && (
+        <p style={{ fontSize:11, color:`${C.roxo}CC`, fontStyle:"italic", fontFamily:C.corpo, margin:0 }}>
+          O Maestro irá revelar o padrão das suas 5 jornadas
+        </p>
+      )}
+    </div>
+  );
+}
 const LABEL_C = {
   1:["Por que essa música?",     "A escolha revela o estado"],
   2:["O que ainda não tem nome", "O confuso, o contraditório"],
@@ -4071,6 +4115,9 @@ export default function Onda() {
                 com O Maestro
               </p>
             </div>
+
+            {/* Indicador de progresso das 5 Jornadas */}
+            <IndicadorJornada sessoes={sessoes}/>
 
             {/* Arquipélago */}
             <Arquipelago ilhasVisitadas={ilhasVisitadas} novaIlha={null} streak={streak}/>
